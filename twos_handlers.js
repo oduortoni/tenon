@@ -1,4 +1,5 @@
 const path = require("node:path");
+const stat = require("node:fs/promises").stat;
 
 const {readFile} = require("./twos_files.js");
 
@@ -29,9 +30,22 @@ function handle404(request) {
 	};
 }
 
-async function handleStatic(request) {
-	const filename = path.join("public", request.url);
+async function isdir(filename) {
+	try {
+		const fileStat = await stat(filename);
+		return fileStat.isDirectory();
+	} catch(err) {
+		if(err.code == 'ENOENT') { // no such file entry
+			console.error("[isdir] no file entry: ", err);
+			return false;
+		}
+		console.error("[isdir] ", err);
+		return false;
+	}
+}
 
+async function handleStatic(request) {
+	const filename = path.join(__dirname, "public", request.url);
 	const prefix = request.url.split("/")[1];
 		
 	let response = {
@@ -41,6 +55,15 @@ async function handleStatic(request) {
 	    },
 	    body: "<h1>Internal server error</h1",
 	};
+
+	let isDir = await isdir(filename);
+	if(isDir) {
+		// least information possible to the client
+		// we simply do not server directories
+		response.status = 404;
+		response.body = "<html><h1>404 page not found</h1></html>";
+		return response;
+	}
 	    
     	const payload = await readFile(filename);
 	

@@ -4,13 +4,39 @@ function createServer(routes) {
     const server = http.createServer(async (http_req, http_res) => {
 	    const request = httpParseRequest(http_req);
 	    const route = findRoute(routes, request);
-	    const response = await route.handler(request);
-	    httpSendResponse(http_res, response);
+	    try {
+		    const response = await route.handler(request);
+		    httpSendResponse(http_res, response);
+	    } catch (err) {
+		    // should be an internal server error but will find a better way to do so
+		    console.error("[handler] failed to handle request", err);
+		    return;
+	    }
     });
 
-    server.start = (port, callback) => {
-	    server.listen(port, callback);
+    server.start = (port = 9000, host = 'localhost') => {
+	    return new Promise((resolve, rejact) => {
+		    server.listen(port, host,  (err) => {
+			    if(err) {
+				    reject(err);
+				    return;
+			    }
+			    resolve();
+		    });
+	    });
     };
+
+    server.stop = (() => {
+	    return new Promise((resolve, reject) => {
+		    server.close((err) => {
+			    if(err) {
+				    reject(err);
+				    return;
+			    }
+			    resolve();
+		    });
+	    });
+    });
 
     return server;
 }
