@@ -9,7 +9,7 @@ async function handleHome (request) {
 		    body: "<h1>Internal server error</h1",
 	    };
 	    
-    	const payload = await readFile("index.html");
+    	const payload = await readFile("pages/index.html");
 	
 	    if (!payload.error) {
 		    response.status = 200;
