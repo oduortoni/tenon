@@ -31,7 +31,10 @@ function httpParseRequest(http_req) {
 
 function findRoute(routes, request) {
 	const routesMap = new Map(Object.entries(routes));
-	return routes[request.url] ?? routes["/404"];
+
+	const uri = `/${request.url.split("/")[1]}`;
+
+	return routes[uri] ?? routes["/404"];
 }
 
 module.exports = {
