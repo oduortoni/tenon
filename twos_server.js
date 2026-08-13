@@ -29,10 +29,13 @@ function createServer(routes) {
     server.stop = (() => {
 	    return new Promise((resolve, reject) => {
 		    server.close((err) => {
+			    console.log("Attempting to shutdown server gracefully ...");
 			    if(err) {
+				    console.error("[shutdown] error on shutdown", err);
 				    reject(err);
 				    return;
 			    }
+			    console.log("[shutdown] successfully shutting down");
 			    resolve();
 		    });
 	    });
