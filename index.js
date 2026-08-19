@@ -1,20 +1,36 @@
 const process = require("node:process");
 
 const {createServer} = require("./twos_server.js");
+const {createRouter} = require("./router.js");
 const {handleHome, handle404, handleStatic} = require("./twos_handlers.js");
 
 let PORT = 9000;
 let HOST = 'localhost';
 
-const routes = {
-	"/": {prefix: false, handler: handleHome},
-	"/css": {prefix: true, handler: handleStatic},
-	"/js": {prefix: true, handler: handleStatic},
-	"/images": {prefix: true, handler: handleStatic},
-	"/404": {prefix: false, handler: handle404},
+const router = createRouter();
+
+router.get("/", handleHome);
+router.get("/persons/:id", handleHome);
+router.get("/css/*", handleStatic);
+router.get("/js/*",  handleStatic);
+router.get("/images/*", handleStatic);
+
+const requestHandler = async (req, res) => {
+	const request = {
+		method: req.method,
+		url: req.url,
+		headers: req.headers,
+		params: {},
+		body: null,
+	};
+
+	const response = await router.route(request);
+
+	res.writeHead(response.status, response.headers || {});
+	res.end(response.body || "");
 };
 
-const server = createServer(routes);
+const server = createServer(requestHandler);
 server.start(PORT, HOST)
 	.then(() => console.log(`Server listening on port: ${PORT}`))
 	.catch(err => {
