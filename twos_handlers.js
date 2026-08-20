@@ -22,6 +22,23 @@ async function handleHome (request) {
 	    return response;
 }
 
+async function handleJsonPayload (request) {	
+    const body = request.body;
+    
+	let response = {
+	    status: 200,
+	    headers: {
+		    'Content-Type': "application/json",
+	    },
+	    body: JSON.stringify({
+	        success: true,
+	        body,
+	    }),
+	};
+	
+	return response;
+}
+
 function handle404(request) {
 	return {
 		status: 404,
@@ -45,8 +62,8 @@ async function isdir(filename) {
 }
 
 async function handleStatic(request) {
-	const filename = path.join(__dirname, "public", request.url);
-	const prefix = request.url.split("/")[1];
+	const filename = path.join(__dirname, "public", request.url.pathname);
+	const prefix = request.url.pathname.split("/")[1];
 		
 	let response = {
 	    status: 500,
@@ -92,7 +109,8 @@ async function handleStatic(request) {
 
 module.exports = {
 	handleHome,
+	handleJsonPayload,
 	handle404,
-	handleStatic
+	handleStatic,
 };
 

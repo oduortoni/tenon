@@ -2,7 +2,8 @@ const process = require("node:process");
 
 const {createServer} = require("./twos_server.js");
 const {createRouter} = require("./router.js");
-const {handleHome, handle404, handleStatic} = require("./twos_handlers.js");
+const { parseRequest, parseRequestBody } = require('./lib/request');
+const {handleHome, handle404, handleStatic, handleJsonPayload} = require("./twos_handlers.js");
 
 let PORT = 9000;
 let HOST = 'localhost';
@@ -11,18 +12,21 @@ const router = createRouter();
 
 router.get("/", handleHome);
 router.get("/persons/:id", handleHome);
+
+// try json payload for example:
+// curl -X POST -d '{"name":"toni","babe":"Rij"}' -H "Content-Type: application/json" http://localhost:9000/json
+router.post("/json", handleJsonPayload);
+
 router.get("/css/*", handleStatic);
 router.get("/js/*",  handleStatic);
 router.get("/images/*", handleStatic);
 
 const requestHandler = async (req, res) => {
-	const request = {
-		method: req.method,
-		url: req.url,
-		headers: req.headers,
-		params: {},
-		body: null,
-	};
+    // parse the headers synchronously so we can begin working with them immediately
+	const request = parseRequest(req);
+	
+	// parse the body asynchronously since it may be too big
+	await parseRequestBody(req, request);
 
 	const response = await router.route(request);
 

@@ -36,7 +36,7 @@ class Route {
             return false;
         }
 
-        const match = request.url.match(this.regex);
+        const match = request.url.pathname.match(this.regex);
         if (!match) {
             return false;
         }
