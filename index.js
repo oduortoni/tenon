@@ -1,9 +1,10 @@
 const process = require("node:process");
 
-const {createServer} = require("./twos_server.js");
-const {createRouter} = require("./router.js");
+const {createServer} = require("./lib/server.js");
+const {createRouter} = require("./lib/router.js");
 const { parseRequest, parseRequestBody } = require('./lib/request');
-const {handleHome, handle404, handleStatic, handleJsonPayload} = require("./twos_handlers.js");
+const {serialize} = require("./lib/response");
+const {handleHome, handleStatic, handleJsonPayload, handleGetAllArticles, handleGetArticle, handlePostArticle} = require("./handlers");
 
 let PORT = 9000;
 let HOST = 'localhost';
@@ -12,6 +13,9 @@ const router = createRouter();
 
 router.get("/", handleHome);
 router.get("/persons/:id", handleHome);
+router.get('/api/articles', handleGetAllArticles);
+router.post('/api/articles', handlePostArticle);
+router.get('/api/articles/:id', handleGetArticle);
 
 // try json payload for example:
 // curl -X POST -d '{"name":"toni","babe":"Rij"}' -H "Content-Type: application/json" http://localhost:9000/json
@@ -22,16 +26,24 @@ router.get("/js/*",  handleStatic);
 router.get("/images/*", handleStatic);
 
 const requestHandler = async (req, res) => {
-    // parse the headers synchronously so we can begin working with them immediately
-	const request = parseRequest(req);
-	
-	// parse the body asynchronously since it may be too big
-	await parseRequestBody(req, request);
+    try {
+        // parse the headers synchronously so we can begin working with them immediately
+	    const request = parseRequest(req);
+	    
+	    // parse the body asynchronously since it may be too big
+	    await parseRequestBody(req, request);
 
-	const response = await router.route(request);
-
-	res.writeHead(response.status, response.headers || {});
-	res.end(response.body || "");
+	    const response = await router.route(request);
+	    
+	    // Serialize and send the response
+        serialize(response, res);
+	} catch(error) {
+	    console.error('Request error:', error);
+        serialize(
+            { status: 500, headers: { 'Content-Type': 'text/plain' }, body: 'Internal Server Error' },
+            res
+        );
+	}
 };
 
 const server = createServer(requestHandler);
@@ -51,3 +63,4 @@ process.on('SIGTERM', () => {
 			process.exit(1);
 		});
 });
+
