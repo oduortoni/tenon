@@ -4,6 +4,8 @@ const {createServer} = require("./lib/server.js");
 const {createRouter} = require("./lib/router.js");
 const { parseRequest, parseRequestBody } = require('./lib/request');
 const {serialize} = require("./lib/response");
+const { compose } = require('./lib/middleware');
+const { logger, cors, security, rateLimit } = require('./lib/middlewares');
 const {handleHome, handleStatic, handleJsonPayload, handleGetAllArticles, handleGetArticle, handlePostArticle} = require("./handlers");
 
 let PORT = 9000;
@@ -27,6 +29,17 @@ router.get("/favicon/*", handleStatic);
 router.get("/favicon.ico", handleStatic);
 router.get("/images/*", handleStatic);
 
+// Build middleware pipeline
+const pipeline = compose(
+    logger,                    // Log all requests
+    cors(),                    // Enable CORS
+    security(),                // Add security headers
+    rateLimit(100, 60000)      // 100 requests per minute
+);
+
+// Apply middleware to router
+const middlewareWrappedRouter = pipeline(router);
+
 const requestHandler = async (req, res) => {
     try {
         // parse the headers synchronously so we can begin working with them immediately
@@ -35,7 +48,7 @@ const requestHandler = async (req, res) => {
 	    // parse the body asynchronously since it may be too big
 	    await parseRequestBody(req, request);
 
-	    const response = await router.route(request);
+	    const response = await middlewareWrappedRouter(request);
 	    
 	    // Serialize and send the response
         serialize(response, res);
