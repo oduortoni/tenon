@@ -23,6 +23,8 @@ router.post("/json", handleJsonPayload);
 
 router.get("/css/*", handleStatic);
 router.get("/js/*",  handleStatic);
+router.get("/favicon/*", handleStatic);
+router.get("/favicon.ico", handleStatic);
 router.get("/images/*", handleStatic);
 
 const requestHandler = async (req, res) => {
