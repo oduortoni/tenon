@@ -11,13 +11,31 @@ const {handleHome, handleStatic, handleJsonPayload, handleGetAllArticles, handle
 let PORT = 9000;
 let HOST = 'localhost';
 
+/**
+*
+* Generate a test user and a few articlesCreated
+*/
+
+const { getSqliteImplementationDatabase } = require("./sqlite_impl");
+const { createArticleRepository } = require('./repositories/articles');
+const { createUserRepository } = require("./repositories/users");
+const { createTestUserAndArticles } = require("./handlers");
+
+const database = getSqliteImplementationDatabase();
+
+const usersRepository = createUserRepository(database);
+const articlesRepository = createArticleRepository(database);
+
+//createTestUserAndArticles(usersRepository, articlesRepository);
+
 const router = createRouter();
 
 router.get("/", handleHome);
 router.get("/persons/:id", handleHome);
-router.get('/api/articles', handleGetAllArticles);
-router.post('/api/articles', handlePostArticle);
-router.get('/api/articles/:id', handleGetArticle);
+router.get('/api/articles', handleGetAllArticles(articlesRepository));
+router.get('/api/articles/:id', handleGetArticle(articlesRepository));
+router.post('/api/articles', handlePostArticle(articlesRepository));
+
 
 // try json payload for example:
 // curl -X POST -d '{"name":"toni","babe":"Rij"}' -H "Content-Type: application/json" http://localhost:9000/json
