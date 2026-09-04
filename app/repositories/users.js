@@ -1,5 +1,5 @@
-const { createRepository } = require('../lib/repository');
-const Reader = require('../lib/reader');
+const { createRepository } = require('../../lib/repository');
+const Reader = require('../../lib/reader');
 
 // User repository factory
 const createUserRepository = (db) => {

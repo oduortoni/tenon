@@ -108,18 +108,21 @@ async function createTestUserAndArticles(usersRepository, articlesRepository) {
         const testArticlesData = [
             {
                 title: "The Ship of Theseus and Identity",
+                slug: "the-ship-of-theseus-and-identity",
                 content: "If an object has all of its components replaced one by one over time, does it fundamentally remain the same object? This deep philosophical paradox challenges our structural understanding of persistence, essence, and what it truly means for an entity to maintain its identity across time and change.",
                 status: "published",
                 author_id: user.id
             },
             {
                 title: "Understanding Functors in Functional Programming",
+                slug: "understanding-functors-in-functional-programming",
                 content: "Essentially, a functor is any data structure or type that can be mapped over. It acts as a container holding a value that implements a 'map' function, allowing you to apply a transformation safely to the inner value without breaking or modifying the structure of the container itself.",
                 status: "published",
                 author_id: user.id
             },
             {
                 title: "The Core Definition of an Agent in Political Science",
+                slug: "the-core-definition-of-an-agent-in-political-science",
                 content: "In political theory, an agent is an individual, collective group, or institution that possesses the capacity and autonomy to make decisions and exert power. The study of agency explores how these political actors operate within structural constraints to influence policies, power dynamics, and historical shifts.",
                 status: "draft",
                 author_id: user.id
@@ -228,14 +231,57 @@ function handlePostArticle(articlesRepository) {
     };
 }
 
+
+// User Handlers
+function handleCreateUser(usersRepository) {
+    return async (req) => {
+        if (!req.body) {
+            return { status: 400, body: 'Missing user data' };
+        }
+        try {
+            const user = await usersRepository.create(req.body);
+            return {
+                status: 201,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+            };
+        } catch (error) {
+            if (error.message.includes('UNIQUE constraint')) {
+                return { status: 409, body: 'Email already exists' };
+            }
+            throw error;
+        }
+    };
+}
+
+function handleGetUserById(usersRepository) {
+    return async (req) => {
+        const user = await usersRepository.findById(req.params.id);
+        if (!user) {
+            return { status: 404, body: 'User not found' };
+        }
+        return {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(user)
+        };    
+    };
+}
+
+
 module.exports = {
 	handleJsonPayload,
 	handleStatic,
 	
 	handleHome,
+	
+	handleCreateUser,
+	handleGetUserById,
+	
 	handleGetAllArticles,
 	handleGetArticle,
 	handlePostArticle,
+	
 	createTestUserAndArticles
 };
 

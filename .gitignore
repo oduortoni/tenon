@@ -1,3 +1,5 @@
 public/favicon
 public/images
 database/tonis.db
+database/tonis.db-shm
+database/tonis.db-wal

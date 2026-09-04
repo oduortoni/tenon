@@ -5,7 +5,7 @@ const {createRouter} = require("./lib/router.js");
 const { parseRequest, parseRequestBody } = require('./lib/request');
 const {serialize} = require("./lib/response");
 const { compose } = require('./lib/middleware');
-const { logger, cors, security, rateLimit } = require('./lib/middlewares');
+const { logger, cors, security, rateLimit } = require('./app/middlewares');
 const {handleHome, handleStatic, handleJsonPayload, handleGetAllArticles, handleGetArticle, handlePostArticle} = require("./handlers");
 
 let PORT = 9000;
@@ -15,13 +15,18 @@ let HOST = 'localhost';
 *
 * Generate a test user and a few articlesCreated
 */
+const { createArticleRepository } = require('./app/repositories/articles');
+const { createUserRepository } = require("./app/repositories/users");
+const { createTestUserAndArticles, handleCreateUser, handleGetUserById } = require("./handlers");
 
-const { getSqliteImplementationDatabase } = require("./sqlite_impl");
-const { createArticleRepository } = require('./repositories/articles');
-const { createUserRepository } = require("./repositories/users");
-const { createTestUserAndArticles } = require("./handlers");
 
-const database = getSqliteImplementationDatabase();
+const {createDatabase} = require("./lib/database");
+const { createSQLiteAdapter } = require('./app/adapters/sqlite');
+const sqliteConfig = {
+    filename: './database/tonis.db',
+};
+const sqliteImpl = createSQLiteAdapter(sqliteConfig);
+const database = createDatabase(sqliteImpl.database);
 
 const usersRepository = createUserRepository(database);
 const articlesRepository = createArticleRepository(database);
@@ -32,6 +37,12 @@ const router = createRouter();
 
 router.get("/", handleHome);
 router.get("/persons/:id", handleHome);
+
+// User routes
+router.post('/api/users', handleCreateUser(usersRepository));
+router.get('/api/users/:id', handleGetUserById(usersRepository));
+
+// Article routes
 router.get('/api/articles', handleGetAllArticles(articlesRepository));
 router.get('/api/articles/:id', handleGetArticle(articlesRepository));
 router.post('/api/articles', handlePostArticle(articlesRepository));
