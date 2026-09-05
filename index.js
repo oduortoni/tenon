@@ -6,7 +6,7 @@ const { parseRequest, parseRequestBody } = require('./lib/request');
 const {serialize} = require("./lib/response");
 const { compose } = require('./lib/middleware');
 const { logger, cors, security, rateLimit } = require('./app/middlewares');
-const {handleHome, handleStatic, handleJsonPayload, handleGetAllArticles, handleGetArticle, handlePostArticle} = require("./handlers");
+const {handleHome, handleStatic, handleJsonPayload, handleGetAllArticles, handleGetArticle, handleGetArticleBySlug, handleCreateArticlesComments, handlePostArticle} = require("./handlers");
 
 let PORT = 9000;
 let HOST = 'localhost';
@@ -17,6 +17,7 @@ let HOST = 'localhost';
 */
 const { createArticleRepository } = require('./app/repositories/articles');
 const { createUserRepository } = require("./app/repositories/users");
+const { createArticleCommentsRepository } = require("./app/repositories/comments");
 const { createTestUserAndArticles, handleCreateUser, handleGetUserById } = require("./handlers");
 
 
@@ -30,6 +31,7 @@ const database = createDatabase(sqliteImpl.database);
 
 const usersRepository = createUserRepository(database);
 const articlesRepository = createArticleRepository(database);
+const articleCommentsRepository = createArticleCommentsRepository(database);
 
 //createTestUserAndArticles(usersRepository, articlesRepository);
 
@@ -46,6 +48,10 @@ router.get('/api/users/:id', handleGetUserById(usersRepository));
 router.get('/api/articles', handleGetAllArticles(articlesRepository));
 router.get('/api/articles/:id', handleGetArticle(articlesRepository));
 router.post('/api/articles', handlePostArticle(articlesRepository));
+router.get('/api/articles/:slug', handleGetArticleBySlug(articlesRepository));
+
+// Article Comments routes
+router.post('/api/articles/:articleId/comments', handleCreateArticlesComments(articleCommentsRepository));
 
 
 // try json payload for example:
