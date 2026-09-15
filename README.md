@@ -29,7 +29,7 @@ const {
 
 ## Quick start (single file)
 
-A complete, runnable app in one file:
+A complete, runnable app in one file — schema, adapter, router, middleware, server. No scaffolding, no hidden magic:
 
 ```js
 const {
@@ -38,7 +38,7 @@ const {
     compose_middlewares,
     convertPureReqResHandlerToServerHandler,
     Schema, Types, field, entity
-} = require('tenon');
+} = require('tenon');   // in this repo: require('./lib')
 
 // --- Schema ---
 const Todo = entity('Todo', {
@@ -48,11 +48,65 @@ const Todo = entity('Todo', {
 });
 const schema = Schema({ Todo });
 
-// --- Adapter (implements the persistence contract) ---
-const { createMemoryAdapter } = require('./app/adapters/memory');
+// --- Adapter: a tiny in-memory persistence adapter ---
+// Anything that implements the persistence contract works here —
+// SQLite, Postgres, mocks, or this in-memory store.
+const createMemoryAdapter = () => {
+    const store = {};
+    const rowsFor = (entity) => (store[entity.name] ||= []);
+    const nextId = (entity) =>
+        rowsFor(entity).reduce((max, r) => Math.max(max, r.id), 0) + 1;
+
+    const generateRepository = (schema, entity) => {
+        const rows = rowsFor(entity);
+        return {
+            findAll: async () => rows.map(r => ({ ...r })),
+            findById: async (id) => rows.find(r => r.id === id) || null,
+            findBy: async (criteria) => rows.filter(r =>
+                Object.entries(criteria).every(([k, v]) => r[k] === v)),
+            create: async (data) => {
+                const row = { ...data, [entity.primaryKey]: nextId(entity) };
+                rows.push(row);
+                return { ...row };
+            },
+            update: async (id, changes) => {
+                const row = rows.find(r => r.id === id);
+                if (row) Object.assign(row, changes);
+                return row ? { ...row } : null;
+            },
+            delete: async (id) => {
+                const i = rows.findIndex(r => r.id === id);
+                if (i !== -1) rows.splice(i, 1);
+            },
+            count: async (criteria = {}) =>
+                Object.keys(criteria).length
+                    ? rows.filter(r => Object.entries(criteria)
+                        .every(([k, v]) => r[k] === v)).length
+                    : rows.length
+        };
+    };
+
+    return {
+        database: {
+            query: async () => [], execute: async () => ({}),
+            get: async () => null,
+            transaction: async (ops) => { for (const op of ops) await op(); },
+            close: async () => {}
+        },
+        translateSchema: () => '',
+        initializeSchema: async () => {},
+        generateRepository,
+        migrate: async () => {},
+        migrator: () => ({
+            getCurrentVersion: async () => 0,
+            setVersion: async () => {},
+            run: async () => ({ applied: [], currentVersion: 0 })
+        })
+    };
+};
+
 const adapter = createMemoryAdapter();
 adapter.initializeSchema(schema);
-
 const todos = schema.repository(adapter, 'Todo');
 
 // --- Router (a pure request -> response function) ---
@@ -87,6 +141,64 @@ const server = createHttpServer(
 );
 server.start(9000).then(() => console.log('listening on 9000'));
 ```
+
+### Test the example
+
+Run the file, then exercise it with curl (JSON POSTs need an explicit `Content-Type` — `curl -d` defaults to form encoding):
+
+```sh
+node app.js                                  # in another terminal: listening on 9000
+
+# create a todo
+curl --json '{"text":"Hello world","done":true}' http://localhost:9000/todos
+# -> {"id":1,"text":"Hello world","done":true}
+
+# the same, spelled out with an explicit header
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"text":"Ship v1","done":false}' http://localhost:9000/todos
+# -> {"id":2,"text":"Ship v1","done":false}
+
+# list them
+curl http://localhost:9000/todos
+# -> [{"id":1,"text":"Hello world","done":true},{"id":2,"text":"Ship v1","done":false}]
+
+# validation: missing required "text"
+curl --json '{"done":true}' http://localhost:9000/todos
+# -> ["text is required"]
+```
+
+Every todo is stored in the in-memory adapter, so a server restart clears the list — switch to the SQLite adapter (see below) for persistence.
+
+## Adapters
+
+An adapter is the pluggable representation of your storage. It implements one documented **persistence contract**; the framework only ever calls through that contract and never branches on adapter type. That is what makes storage swappable without touching your app code.
+
+An adapter must provide:
+
+| Member | Purpose |
+|---|---|
+| `translateSchema(schema)` | render the schema to storage DDL (string) |
+| `initializeSchema(schema)` | create the storage structure (tables/collections) |
+| `generateRepository(schema, entity)` | build a CRUD repository for one entity |
+| `migrate(migration)` | apply a single migration |
+| `migrator()` | `{ getCurrentVersion, setVersion, run }` migration tracking |
+| `database` | `{ query, execute, get, transaction, close }` |
+
+The repo ships with a SQLite adapter:
+
+```js
+const { createSQLiteAdapter } = require('./app/adapters/sqlite');
+
+const adapter = createSQLiteAdapter({
+    filename: './database/tenon.db',
+    tables: { ArticleTag: 'article_tags' }   // table-name overrides
+});
+
+adapter.initializeSchema(schema);
+const users = schema.repository(adapter, 'User');
+```
+
+Write your own for anything else — Postgres, MongoDB, an in-memory store (see quick start), or a mock for tests. As long as it honors the contract, `schema.repository(adapter, name)` works unchanged. The full contract and a writing-your-own guide live in `docs/persistence.txt`.
 
 ## Structure
 

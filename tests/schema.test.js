@@ -88,6 +88,20 @@ test('validation applies function defaults', () => {
     assert.ok(data.created_at.getTime() >= before);
 });
 
+test('validation preserves falsy defaults (false, 0, empty string)', () => {
+    const Flag = entity('Flag', {
+        id: field(Types.id, { primaryKey: true }),
+        active: field(Types.boolean, { default: false }),
+        visits: field(Types.integer, { default: 0 }),
+        note: field(Types.string, { default: '' })
+    });
+    const { errors, data } = validate(Flag, {});
+    assert.deepEqual(errors, []);
+    assert.equal(data.active, false);
+    assert.equal(data.visits, 0);
+    assert.equal(data.note, '');
+});
+
 test('validation respects custom field validators', () => {
     const Even = entity('Even', {
         id: field(Types.id, { primaryKey: true }),
