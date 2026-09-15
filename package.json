@@ -1,7 +1,7 @@
 {
-  "name": "twos",
+  "name": "tenon",
   "version": "1.0.0",
-  "description": "",
+  "description": "A functional, explicit, composable Node.js framework",
   "main": "index.js",
   "directories": {
     "example": "examples"

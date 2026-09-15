@@ -66,7 +66,7 @@ const {
 
     // The persistence contract (documentation, not an implementation)
     PersistenceContract
-} = require('tonis');          // in this repo: require('./lib')
+} = require('tenon');          // in this repo: require('./lib')
 
 Everything else in lib/ (database.js, files.js, parsers.js, ...) is
 internal. If you need something not on this list, ask for it to be
@@ -231,7 +231,7 @@ in one file, for a small service or a demo:
         convertPureReqResHandlerToServerHandler,
         Schema, Types, field, entity,
         PersistenceContract        // you will read this when writing adapters
-    } = require('tonis');          // in this repo: require('./lib')
+    } = require('tenon');          // in this repo: require('./lib')
 
     // --- models, inline ---
     const Todo = entity('Todo', {
