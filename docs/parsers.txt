@@ -1,0 +1,49 @@
+lib/parsers.js
+==============
+
+Low-level parsing helpers. You will rarely use these directly —
+parseHttpRequest and parseHttpRequestBody (docs/request.txt) build
+on them. They are documented here because your own server-handler
+adapter might reuse them.
+
+parseHeaders(rawHeaders)
+------------------------
+Lowercases every header key.
+
+    parseHeaders({ 'Content-Type': 'x' })   // { 'content-type': 'x' }
+
+parseCookies(cookieHeader)
+--------------------------
+Splits and decodes a Cookie header into an object.
+
+    parseCookies('a=1; b=hello')   // { a: '1', b: 'hello' }
+    parseCookies(undefined)        // {}
+
+parseQuery(url)
+---------------
+Turns a URL's search params into an object.
+
+    parseQuery(new URL('http://x/api?a=b&c=1'))   // { a: 'b', c: '1' }
+
+parseBody(contentType, body)
+----------------------------
+Parses a raw body string according to the Content-Type:
+
+    parseBody('application/json', '{"a":1}')
+        -> { found: true,  value: { a: 1 } }
+
+    parseBody('application/x-www-form-urlencoded', 'a=1&b=2')
+        -> { found: true,  value: { a: '1', b: '2' } }
+
+    parseBody('text/plain', 'hi')
+        -> { found: true,  value: 'hi' }
+
+    parseBody('application/json', 'not json')
+        -> { found: false, error: 'Invalid JSON' }
+
+    parseBody('image/png', '...')
+        -> { found: false, error: 'Unsupported content type: image/png' }
+
+The return shape is a result ADT (found/value or found/error) — no
+throwing on bad payloads. parseHttpRequestBody turns this into
+request.body / request.bodyError accordingly.

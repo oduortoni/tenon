@@ -1,0 +1,36 @@
+lib/files.js
+============
+
+Tiny file helpers with a consistent result-shape (no throwing on
+read failures — the caller looks at the flag).
+
+readFile(filename) -> { error: boolean, data: Buffer | '' }
+-----------------------------------------------------------
+
+    const { readFile } = require('./lib/files');
+
+    const payload = await readFile('pages/index.html');
+    if (!payload.error) {
+        return html(payload.data);        // data is a Buffer
+    }
+    return internalError('...');
+
+Used by the demo's static-file and home-page handlers. The data is
+returned as a Buffer, which serializeResponseToHttp passes through
+untouched (good for binary files and for setting Content-Length).
+
+isdir(path) -> Promise<boolean>
+------------------------------
+
+    const { isdir } = require('./lib/files');
+
+    if (await isdir('./public/css')) {
+        // it is a directory, do not serve it
+    }
+
+Returns false on ENOENT (missing path) rather than throwing, so it
+is safe to probe paths.
+
+These are NOT on the public surface (lib/index.txt). They serve
+the demo app and are available for your own handlers if you need
+them — import them from the internal path exactly as shown above.

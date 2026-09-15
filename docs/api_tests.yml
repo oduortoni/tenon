@@ -1,0 +1,97 @@
+title: Twos API Test Guide
+description: |
+  Curated curl requests for exercising each REST endpoint.
+  Start the server with: npm run dev
+  The base URL is http://localhost:9000.
+
+tests:
+  - title: Create a new user
+    description: POST a valid user payload. Requires email, password, and name. Returns 201 on success.
+    curl: |
+      curl -X POST http://localhost:9000/api/users \
+        -H "Content-Type: application/json" \
+        -d '{"email":"test@example.com","password":"secret123","name":"Test User"}'
+
+  - title: Reject user with invalid email
+    description: POST a user with an email that does not contain '@'. Schema validation returns 422 with an error message.
+    curl: |
+      curl -X POST http://localhost:9000/api/users \
+        -H "Content-Type: application/json" \
+        -d '{"email":"bademail","password":"secret","name":"Test"}'
+
+  - title: Reject user with missing required fields
+    description: POST an empty body. Validation reports every missing required field. Returns 422.
+    curl: |
+      curl -X POST http://localhost:9000/api/users \
+        -H "Content-Type: application/json" \
+        -d '{}'
+
+  - title: Reject duplicate email
+    description: POST a user whose email already exists in the database. Returns 409 Conflict.
+    curl: |
+      curl -X POST http://localhost:9000/api/users \
+        -H "Content-Type: application/json" \
+        -d '{"email":"test@example.com","password":"secret","name":"Duplicate"}'
+
+  - title: Get a user by id
+    description: GET /api/users/:id. Returns the user object as JSON, or 404 if not found.
+    curl: |
+      curl http://localhost:9000/api/users/1
+
+  - title: Create an article
+    description: POST a valid article payload. Requires title, slug, content, and author_id. Returns 201 with a Location header.
+    curl: |
+      curl -X POST http://localhost:9000/api/articles \
+        -H "Content-Type: application/json" \
+        -d '{"title":"My First Article","slug":"my-first-article","content":"The full body of the article goes here.","author_id":1}'
+
+  - title: Reject article with missing slug
+    description: POST an article with an empty slug. Slug validation requires a non-empty string. Returns 422.
+    curl: |
+      curl -X POST http://localhost:9000/api/articles \
+        -H "Content-Type: application/json" \
+        -d '{"title":"No Slug","slug":"","content":"Body","author_id":1}'
+
+  - title: Get all articles
+    description: GET /api/articles. Returns a JSON array of all articles, ordered by newest first.
+    curl: |
+      curl http://localhost:9000/api/articles
+
+  - title: Get an article by numeric id
+    description: GET /api/articles/:id. When the param is numeric the adapter looks up by primary key.
+    curl: |
+      curl http://localhost:9000/api/articles/1
+
+  - title: Get an article by slug
+    description: GET /api/articles/:slug. When the param is not numeric the adapter looks up by slug.
+    curl: |
+      curl http://localhost:9000/api/articles/my-first-article
+
+  - title: Create a comment on an article
+    description: POST /api/articles/:articleId/comments. Requires name, email, and content in the body. Returns 201.
+    curl: |
+      curl -X POST http://localhost:9000/api/articles/1/comments \
+        -H "Content-Type: application/json" \
+        -d '{"name":"Commenter","email":"c@example.com","content":"Great article!"}'
+
+  - title: Reject comment with missing content
+    description: POST a comment without content. The 'content' field is required by the Comment schema. Returns 422.
+    curl: |
+      curl -X POST http://localhost:9000/api/articles/1/comments \
+        -H "Content-Type: application/json" \
+        -d '{"name":"X","email":"x@x.com"}'
+
+  - title: Serve the home page
+    description: GET /. Returns the index.html page with Content-Type text/html.
+    curl: |
+      curl -i http://localhost:9000/
+
+  - title: Serve a static CSS file
+    description: GET /css/*. Files under /public/css/ are served with Content-Type text/css.
+    curl: |
+      curl http://localhost:9000/css/styles.css
+
+  - title: 404 for unknown routes
+    description: GET a path that matches no registered route. The router returns a 404 HTML page.
+    curl: |
+      curl -o /dev/null -w "%{http_code}" http://localhost:9000/api/nothing-here

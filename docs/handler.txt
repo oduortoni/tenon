@@ -1,0 +1,93 @@
+lib/handler.js
+==============
+
+convertPureReqResHandlerToServerHandler(handleRequest)
+------------------------------------------------------
+
+The single, named, replaceable "ritual adapter" that turns a PURE
+handler into a Node server handler.
+
+The two handler shapes
+----------------------
+
+1. Pure handler — what YOU write:
+
+       (request) => Response   |  (request) => Promise<Response>
+
+   It knows nothing about node:http. It reads a plain Request
+   object and returns a plain Response object. This is the shape
+   the router speaks and the shape middleware operates on.
+
+2. Server handler — what createHttpServer actually calls:
+
+       (http_req, http_res) => void
+
+   Node's native listener shape. It knows nothing about the pure
+   Request/Response shapes.
+
+The adapter is the ONLY conversion between the two. It does the
+identical sequence every server must do:
+
+       const request = parseHttpRequest(req);
+       await parseHttpRequestBody(req, request);
+       const response = await handleRequest(request);
+       serializeResponseToHttp(response, res);
+
+and, on any thrown error:
+
+       serializeResponseToHttp(
+           { status: 500,
+             headers: { 'Content-Type': 'text/plain' },
+             body: 'Internal Server Error' },
+           res
+       );
+
+Usage
+-----
+
+    const {
+        createHttpServer,
+        createRouter,
+        compose_middlewares,
+        convertPureReqResHandlerToServerHandler,
+    } = require('./lib');
+
+    const router = createRouter();
+    // ... register routes ...
+
+    const inner = compose_middlewares(logger, cors())(router);
+    const httpListener = convertPureReqResHandlerToServerHandler(inner);
+
+    const server = createHttpServer(httpListener);
+    server.start(9000);
+
+Replace it when you want to
+---------------------------
+
+This adapter is a CONVENIENCE, not a secret. All four primitives it
+uses are exported. Write your own when you need custom logging,
+tracing, request ids, or per-request error pages:
+
+    const { parseHttpRequest, parseHttpRequestBody } = require('./lib');
+    const { serializeResponseToHttp } = require('./lib');
+
+    const myAdapter = (handleRequest) => async (req, res) => {
+        try {
+            const request = parseHttpRequest(req);
+            await parseHttpRequestBody(req, request);
+            const trace = { at: Date.now(), ...request.client };
+            console.log('start', trace);
+            const response = await handleRequest(request);
+            console.log('done', response.status);
+            serializeResponseToHttp(response, res);
+        } catch (error) {
+            console.error(error);
+            serializeResponseToHttp(
+                { status: 500, body: 'boom', headers: { 'Content-Type': 'text/plain' } },
+                res
+            );
+        }
+    };
+
+You are never locked in. The framework only ever calls through
+whatever function you hand to createHttpServer.

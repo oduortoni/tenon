@@ -1,0 +1,48 @@
+lib/database.js
+===============
+
+createDatabase(implementation)
+------------------------------
+
+Wraps a raw database implementation into the uniform interface the
+framework's helpers expect. It is a thin, structural facade:
+
+    const { createDatabase } = require('./lib/database');
+
+    const db = createDatabase({
+        query:       async (sql, params) => [...],
+        execute:     async (sql, params) => ({ lastID, changes }),
+        get:         async (sql, params) => {...},
+        transaction: async (ops) => [...],
+        close:       async () => {...}
+    });
+
+The result exposes exactly those five functions.
+
+Why it exists
+-------------
+
+Adapters already provide a database object with this exact shape
+(see docs/persistence.txt: adapter.database). createDatabase is a
+convenience for writing your OWN adapters or repositories where you
+have a raw driver but not a framework-shaped object.
+
+You probably will not need it
+-----------------------------
+
+If you use a framework adapter (e.g. createSQLiteAdapter from
+app/adapters), its adapter.database is already compliant. Reach for
+createDatabase only when assembling a custom storage layer yourself.
+
+Example — trivial in-memory stub database:
+
+    const store = {};
+    const impl = {
+        query: async (sql, params) => Object.values(store),
+        execute: async (sql, params) => ({ lastID: 1, changes: 1 }),
+        get: async (sql, params) => Object.values(store)[0] || null,
+        transaction: async (ops) => opRunner(ops),
+        close: async () => {}
+    };
+    const db = createDatabase(impl);
+    // db.query, db.execute, db.get, db.transaction, db.close

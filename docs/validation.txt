@@ -1,0 +1,83 @@
+lib/validation.js
+=================
+
+validate(entity, data)
+----------------------
+
+Pure validation of plain data against an entity definition.
+No database, no network — just an object in, an object out.
+
+Signature
+---------
+
+    validate(entity, data) -> { errors, data }
+
+    errors   array of human-readable strings (empty when valid)
+    data     the cleaned/merged object to persist
+
+What it checks
+--------------
+
+For every field defined on the entity:
+
+  - required:      missing/null values -> "name is required"
+  - type.validate: present wrong-typed values -> error
+  - field.validate (custom): (value) => error-string | null
+
+What it fills in
+----------------
+
+  - field.default is applied to missing values:
+      value            -> used as-is
+      () => value      -> called to produce the value
+
+The result.data is what you should persist: it has defaults
+resolved and nonsense rejected.
+
+Usage
+-----
+
+    const { schema } = ... // schema.validate wraps this (docs/schema.txt)
+
+    const result = schema.validate('User', request.body);
+    if (result.errors.length > 0) {
+        return { status: 422, body: JSON.stringify({ errors: result.errors }) };
+    }
+    const user = await usersRepo.create(result.data);   // clean data
+
+schema.validate(name, data) throws if the entity name is unknown;
+validate(entity, data) does not throw on data problems — it always
+returns { errors, data }.
+
+Example
+-------
+
+    const User = entity('User', {
+        id:    field(Types.id,     { primaryKey: true }),
+        email: field(Types.email,  { required: true }),
+        role:  field(Types.string, { default: 'user' })
+    });
+
+    validate(User, { email: 'a@example.com' })
+    // { errors: [], data: { email: 'a@example.com', role: 'user' } }
+
+    validate(User, { email: 'nope' })
+    // { errors: ['email has invalid type (expected TEXT)'],
+    //   data: { email: 'nope', role: 'user' } }
+
+Validation is a user concern by design
+--------------------------------------
+
+The framework provides the validate PRIMITIVE. There are no hidden
+route-level decorators. If you want validation in your routes,
+either call it in a handler (above) or write a middleware:
+
+    const validates = (schema, name) => (handler) => async (request) => {
+        const result = schema.validate(name, request.body);
+        if (result.errors.length > 0) {
+            return { status: 422,
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ errors: result.errors }) };
+        }
+        return handler({ ...request, validatedBody: result.data });
+    };

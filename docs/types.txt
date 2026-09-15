@@ -1,0 +1,70 @@
+lib/types.js
+============
+
+Types
+-----
+
+A catalogue of field types. Each type knows three things:
+
+    name      storage name (e.g. 'TEXT', 'INTEGER', 'DATETIME')
+    validate  pure predicate: (value) => boolean
+    toDB      value -> storage representation   (optional)
+    fromDB    storage value -> runtime value    (optional)
+
+    const { Types } = require('./lib');
+
+Available types
+---------------
+
+    integer    INTEGER.  validate: Number.isInteger(value)
+    string     TEXT.     validate: typeof value === 'string'
+    text       TEXT.     Same as string; body-length content.
+    boolean    INTEGER.  validate: typeof value === 'boolean';
+                          stored as 1/0 (toDB/fromDB)
+    datetime   DATETIME. validate: Date OR string;
+                          stored as ISO string; read back as Date
+    json       TEXT.     validate: object or array;
+                          stored as JSON string (toDB/fromDB)
+    id         INTEGER.  validate: positive integer (identity)
+    slug       TEXT.     validate: non-empty string
+    email      TEXT.     validate: string containing '@'
+
+The two conversion types are the important ones
+-----------------------------------------------
+
+Types that carry toDB/fromDB make the adapter round-trip values for
+you, so the runtime world stays natural while storage stays honest:
+
+    // boolean:
+    repo.create({ active: true })            // stored as 1
+    (await repo.findById(id)).active         // read back as true
+
+    // datetime:
+    repo.create({ at: new Date() })          // stored ISO text
+    (await repo.findById(id)).at             // read back as a Date
+
+    // json:
+    repo.create({ meta: [{ a: 1 }] })        // stored as JSON text
+    (await repo.findById(id)).meta           // read back as array
+
+Validation uses type.validate
+-----------------------------
+
+During schema.validate, each present value is checked against its
+type's validate predicate. A failed check produces an error like
+"email has invalid type (expected TEXT)".
+
+Writing your own type
+---------------------
+
+A type is just an object. Anything that follows the shape can be
+dropped into Types or passed straight to field():
+
+    const positive = {
+        name: 'INTEGER',
+        validate: (v) => Number.isInteger(v) && v > 0
+    };
+
+    field(positive, { required: true })
+
+Types are not a closed set — they are a convention.

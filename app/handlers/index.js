@@ -1,8 +1,8 @@
 const path = require("node:path");
 const stat = require("node:fs/promises").stat;
 
-const { json, html, plain, ok, created, notFound, badRequest, internalError } = require('./lib/response.js');
-const {readFile, isdir} = require("./lib/files.js");
+const { json, html, plain, ok, created, notFound, badRequest, internalError } = require('../../lib/response.js');
+const {readFile, isdir} = require("../../lib/files.js");
 
 async function handleHome (request) {		    
     const payload = await readFile("pages/index.html");
@@ -20,7 +20,7 @@ async function handleStatic(request) {
     if(request.url.pathname == "/favicon.ico") {
         request.url.pathname = `/favicon${request.url.pathname}`;
     }
-	const filename = path.join(__dirname, "public", request.url.pathname);
+	const filename = path.join(__dirname, "/../../public", request.url.pathname);
 	const prefix = request.url.pathname.split("/")[1];
 		
 	let response = {
@@ -89,13 +89,24 @@ async function handleStatic(request) {
 *
 * User Handlers
 */
-function handleCreateUser(usersRepository) {
+function handleCreateUser(usersRepository, schema) {
     return async (req) => {
         if (!req.body) {
             return { status: 400, body: 'Missing user data' };
         }
+        
+        // Validation is pure — done by the framework, no database needed
+        const result = schema.validate('User', req.body);
+        if (result.errors.length > 0) {
+            return {
+                status: 422,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ errors: result.errors })
+            };
+        }
+        
         try {
-            const user = await usersRepository.create(req.body);
+            const user = await usersRepository.create(result.data);
             return {
                 status: 201,
                 headers: { 'Content-Type': 'application/json' },
@@ -169,7 +180,11 @@ function handleGetAllArticles(articlesRepository) {
 
 function handleGetArticle(articlesRepository) {
     return async (req) => {
-        const article = await articlesRepository.findById(req.params.id);
+        const param = req.params.id || req.params.slug;
+        const isNumeric = /^\d+$/.test(param) && Number.isInteger(Number(param));
+        const article = isNumeric
+            ? await articlesRepository.findById(Number(param))
+            : await articlesRepository.findBySlug(param);
         if (!article) {
             return { status: 404, body: 'Article not found' };
         }
@@ -200,15 +215,23 @@ function handleGetArticle(articlesRepository) {
 //    });
 //}
 
-function handlePostArticle(articlesRepository) {
+function handlePostArticle(articlesRepository, schema) {
     return async (req) => {
         if (!req.body) {
             return { status: 400, body: 'Missing article data' };
         }
-        const article = await articlesRepository.create(req.body);
+        const result = schema.validate('Article', req.body);
+        if (result.errors.length > 0) {
+            return {
+                status: 422,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ errors: result.errors })
+            };
+        }
+        const article = await articlesRepository.create(result.data);
         return {
             status: 201,
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Location': `/api/articles/${article.id}`
             },
@@ -219,7 +242,11 @@ function handlePostArticle(articlesRepository) {
 
 function handleGetArticleBySlug(articlesRepository) {
     return async (req) => {
-        const article = await articlesRepository.findBySlug(req.params.slug);
+        const param = req.params.slug || req.params.id;
+        const isNumeric = /^\d+$/.test(param) && Number.isInteger(Number(param));
+        const article = isNumeric
+            ? await articlesRepository.findById(Number(param))
+            : await articlesRepository.findBySlug(param);
         if (!article) {
             return { status: 404, body: 'Article not found' };
         }
@@ -231,15 +258,24 @@ function handleGetArticleBySlug(articlesRepository) {
     };
 }
 
-function handleCreateArticlesComments(commentsRepository) {
+function handleCreateArticlesComments(commentsRepository, schema) {
     return async (req) => {
         if (!req.body) {
             return { status: 400, body: 'Missing comment data' };
         }
-        const comment = await commentsRepository.create({
+        const commentData = {
             ...req.body,
             article_id: parseInt(req.params.articleId)
-        });
+        };
+        const result = schema.validate('Comment', commentData);
+        if (result.errors.length > 0) {
+            return {
+                status: 422,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ errors: result.errors })
+            };
+        }
+        const comment = await commentsRepository.create(result.data);
         return {
             status: 201,
             headers: { 'Content-Type': 'application/json' },

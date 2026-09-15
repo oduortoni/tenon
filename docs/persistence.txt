@@ -1,0 +1,96 @@
+lib/persistence.js
+==================
+
+PersistenceContract — the adapter plug point
+--------------------------------------------
+
+PersistenceContract is a SPECIFICATION, not an implementation. It
+documents the one interface every storage adapter must implement.
+The framework never imports an adapter and never branches on
+adapter type: it calls through this contract and nothing else.
+
+Who reads this?
+---------------
+
+  1. You, if you want to understand how repositories get built.
+  2. You, if you want to write a new adapter (another database,
+     an in-memory store, a mock for tests).
+
+The contract
+------------
+
+An adapter is an object. Required members:
+
+    translateSchema(schema)            -> string of DDL
+        Renders the schema to storage-specific DDL (e.g. CREATE
+        TABLE statements). Pure: no side effects.
+
+    initializeSchema(schema)           -> Promise
+        Applies the schema to storage (creates tables).
+
+    generateRepository(schema, entity) -> repository object
+        Builds a CRUD repository for ONE entity. Called by
+        schema.repository(adapter, name).
+
+    migrate(migration)                 -> Promise
+        Applies a single migration.
+
+    migrator()                         -> { getCurrentVersion, setVersion, run }
+        Versioned migration tracking.
+
+    database = {
+        query(sql, params)             -> Promise<Row[]>
+        execute(sql, params)           -> Promise<{ lastID, changes }>
+        get(sql, params)               -> Promise<Row | null>
+        transaction(operations)        -> Promise<results>
+        close()                        -> Promise<void>
+    }
+
+What the framework owes you
+---------------------------
+
+The framework guarantees it will only ever call through this
+interface. It will never:
+
+  - require() your adapter
+  - check adapter.type / adapter.kind / instanceof
+  - reach into adapter internals
+
+That is what makes adapters plug-compatible: swap
+createSQLiteAdapter for createMemoryAdapter and the framework is
+unaffected. It is also what lets you mock storage trivially in
+tests by writing a small stub adapter.
+
+Using schema.repository
+-----------------------
+
+The one framework-side entry point:
+
+    const usersRepo = schema.repository(adapter, 'User');
+
+Which simply does:
+
+    const entity = schema.get('User');
+    return adapter.generateRepository(schema, entity);
+
+Your adapter decides the representation
+---------------------------------------
+
+Example — the SQLite adapter maps entity names to table names:
+
+    createSQLiteAdapter({
+        filename: './database/tonis.db',
+        tables: { ArticleTag: 'article_tags' }   // override pluralization
+    });
+
+The entity itself knows nothing about 'article_tags'; that is the
+adapter's choice, layered on in config by YOU.
+
+Writing your own adapter
+------------------------
+
+Implement the contract above. Translate entities to whatever your
+storage speaks. Return a repository object with at least
+findAll/findById/findBy/create/update/delete/count. Those are the
+shapes your handlers compose against. Nothing else is required.
+

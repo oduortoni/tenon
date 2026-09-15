@@ -1,0 +1,94 @@
+lib/router.js
+=============
+
+createRouter()
+--------------
+
+Creates a router: a pure function that takes a Request and returns
+a Response. Registration is lazy — registering a route performs NO
+work. Matching + execution happens only when the router is called,
+once per request.
+
+Why a router is just a function
+-------------------------------
+
+The router is a value you can pass around, compose middleware over,
+and wrap in an adapter. It is not an object you "start". This is
+what makes it composable with everything else in the framework.
+
+    const router = createRouter();
+    // ... register routes ...
+    const app = compose_middlewares(logger, cors())(router);  // router as a handler
+
+Signature
+---------
+
+    router(request) -> Response
+
+    request   the pure Request object (see docs/request.txt).
+              Route parameters are written into request.params.
+
+Returns a Response when a route matches, otherwise a 404 Response.
+
+Registering routes
+------------------
+
+    router.get(pattern, handler)
+    router.post(pattern, handler)
+    router.put(pattern, handler)
+    router.delete(pattern, handler)
+    router.patch(pattern, handler)
+    router.add(method, pattern, handler)   // any HTTP method
+
+Every registration returns the router, so you can chain:
+
+    router
+        .get('/', home)
+        .get('/css/*', staticFiles)
+        .post('/api/users', createUser);
+
+Patterns
+--------
+
+    exact        '/api/users'          matches exactly
+    :param       '/api/users/:id'      captures one path segment
+    *            '/css/*'              matches any remainder
+
+Captured parameters land in request.params:
+
+    // route: GET /api/articles/:id
+    getArticleById(request) {
+        return findBy(request.params.id);
+    }
+
+The defaults
+------------
+
+    handler   (request) -> Response
+              The pure handler shape. The router does not care how
+              you built it (direct function, repository-closing
+              factory, middleware-wrapped, whatever).
+
+Misses
+------
+
+A request that matches no route (or wrong method) gets:
+
+    { status: 404, headers: { 'Content-Type': 'text/html' },
+      body: '<html><h1>Page not found!</h1></html>' }
+
+You can still run your own 404 logic upstream in middleware, e.g. a
+notFound middleware that inspects the router's output.
+
+Why not app.get(...)?
+---------------------
+
+Because a router is a value, you can:
+
+  - test it without a server
+  - reuse it across servers
+  - hand it to middleware as a plain handler
+  - replace it entirely with your own matching function
+
+The framework does not care HOW routes are matched, only that you
+compose your own router into the pipeline.

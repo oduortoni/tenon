@@ -1,0 +1,68 @@
+lib/response.js
+===============
+
+Everything about the pure Response: building them, transforming
+them, and serializing them onto a Node ServerResponse.
+
+The pure Response shape
+-----------------------
+
+    {
+        status:  200 | 404 | ...   // integer status code
+        headers: { 'Content-Type': 'application/json', ... }
+        body:    string | Buffer | null | anything-JSON-stringifiable
+    }
+
+Factory and convenience constructors
+------------------------------------
+
+    response(status, body, headers = {})   // the base factory
+
+    ok(body, headers?)              -> 200
+    created(body, headers?)         -> 201
+    noContent(headers?)             -> 204 (body null)
+    moved(location, permanent=true) -> 301/302 with Location header
+    badRequest(body, headers?)      -> 400
+    unauthorized(body, headers?)    -> 401
+    forbidden(body, headers?)       -> 403
+    notFound(body, headers?)        -> 404
+    internalError(body, headers?)   -> 500
+
+Content helpers
+---------------
+
+    json(body)   -> 200, Content-Type: application/json, JSON body
+    html(body)   -> 200, Content-Type: text/html
+    plain(body)  -> 200, Content-Type: text/plain
+
+Transformers (pure — they return NEW responses)
+-----------------------------------------------
+
+    transform(response, [fn, fn, ...])  // apply a list of transforms
+
+    withHeaders(response, headers)      // merge headers
+    withStatus(response, status)        // replace status
+    withBody(response, body)            // replace body
+    cache(response, maxAge)             // Cache-Control: max-age=...
+    cors(response)                      // Access-Control-Allow-*
+
+These compose naturally with middleware:
+
+    const cacheControl = (handler) => (request) =>
+        withHeaders(await handler(request), { 'Cache-Control': 'public' });
+
+Serializers (the bridge to Node)
+--------------------------------
+
+    serializeResponseToHttp(response, res)
+        Writes a pure Response onto a Node ServerResponse:
+        writeHead(status, headers) + end(body). Converts non-string
+        bodies to JSON, passes Buffers through untouched.
+
+    serializeStream(response, res)
+        Like above, but streams generators / Node streams in
+        response.body instead of buffering.
+
+You will normally use only serializeResponseToHttp, and only inside
+your server-handler adapter (docs/handler.txt). It is exported so
+you can write your own adapter with your own serialization rules.

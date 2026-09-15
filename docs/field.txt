@@ -1,0 +1,70 @@
+lib/field.js
+============
+
+field(type, options)
+--------------------
+
+Declares a single field of an entity. Type comes from Types
+(docs/types.txt); options describe constraints and conventions.
+
+    const { field, Types } = require('./lib');
+
+    field(Types.string)
+    field(Types.id,     { primaryKey: true })
+    field(Types.email,  { required: true, unique: true })
+    field(Types.string, { default: 'draft' })
+    field(Types.id,     { foreignKey: 'User' })
+    field(Types.integer, { validate: (v) => v % 2 === 0 ? null : 'must be even' })
+
+Shape
+-----
+
+    {
+        type:       a Types entry          // required
+        required:   false                  // options.required
+        unique:     false                  // options.unique
+        default:    null                   // options.default  (value OR () => value)
+        primaryKey: false                  // options.primaryKey
+        foreignKey: null                   // options.foreignKey  (entity name)
+        validate:   null                   // options.validate  (value -> error|null)
+    }
+
+Options
+-------
+
+    required    When true, validation rejects missing/null values.
+
+    unique      Expresses uniqueness. The ADAPTER turns this into a
+                UNIQUE index (e.g. SQLite), the validator knows
+                nothing about it.
+
+    default     Value used when validation sees nothing. May be a
+                function: it is called to produce the value, e.g.
+                () => new Date() for timestamps.
+
+    primaryKey  Marks the identity field. Use together with
+                Types.id (or whatever your storage identifies by).
+
+    foreignKey  The NAME of another entity (not a table).
+                The adapter resolves it to the referenced table
+                and primary key.
+
+    validate    A pure custom validator: (value) => error-string | null.
+                It runs AFTER the type check, only when the value is
+                present. Returning a string fails validation.
+
+Timestamps and soft delete are just fields
+------------------------------------------
+
+Nothing in the framework secretly adds timestamps. If you want
+them, make them fields:
+
+    created_at: field(Types.datetime, { default: () => new Date() })
+    updated_at: field(Types.datetime, { default: () => new Date() })
+    deleted_at: field(Types.datetime)
+
+Soft delete then becomes an application convention in your
+repository/handler, not a framework feature:
+
+    usersRepo.softDelete = (id) =>
+        usersRepo.update(id, { deleted_at: new Date() });

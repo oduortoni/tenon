@@ -1,0 +1,79 @@
+lib/middleware.js
+=================
+
+Three composition primitives for the middleware pipeline.
+
+A middleware is just a function that takes a handler and returns a
+handler:
+
+    (handler) => (request) => Response
+
+It wraps: do something before the request reaches the inner handler,
+optionally transform the response on the way back out.
+
+    const logger = (handler) => (request) => {
+        console.log(request.method, request.path);
+        const response = await handler(request);
+        return withStatus(response, response.status);   // unchanged
+    };
+
+Primitives
+----------
+
+compose_middlewares(...middlewares)
+    Nests middlewares in the order given (last one wraps the
+    handler, first one wraps everything):
+
+        const pipeline = compose_middlewares(logger, cors(), security());
+
+        // equivalent to:
+        //   logger(cors(security(handler)))
+
+    Returns a function that takes the final (innermost) handler:
+
+        const app = pipeline(router);
+
+    The middlewares run LEFT to RIGHT on the way IN (logger first),
+    RIGHT to LEFT on the way OUT. To remember: the first middleware
+    listed is the first one that sees the request.
+
+identity_middleware(handler)
+    The no-op middleware. Returns its argument unchanged. Useful as
+    a placeholder, a default, or a neutral element in composition.
+
+concat_middlewares(...arrays)
+    Flattens any number of middleware arrays into one ordered array.
+    Useful when you collect middleware from different places:
+
+        const mw = concat_middlewares(
+            [logger, cors()],
+            security(),
+            rateLimit(100, 60000)
+        );
+        const app = compose_middlewares(...mw)(router);
+
+The full composition idiom
+--------------------------
+
+    // Build middleware lists anywhere you like
+    const auth = [sessionMiddleware, requireAuth];
+    const web  = [logger, cors(), security()];
+
+    // Compose them into a single request-handling pipeline
+    const pipeline = compose_middlewares(
+        ...concat_middlewares(web, auth, [rateLimit(100, 60000)])
+    );
+
+    // Hand the pipeline a router (a handler) and adapt it
+    const requestHandler =
+        convertPureReqResHandlerToServerHandler(pipeline(router));
+
+Why plain functions?
+--------------------
+
+Middleware is composition, not registration. compose_middlewares
+makes the ORDER visible in the call, and you can recompose in any
+order at test time without touching the middleware definitions.
+
+To write middleware, you need nothing from the framework — every
+middleware is just (handler) => handler.

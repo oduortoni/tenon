@@ -1,0 +1,63 @@
+lib/entity.js
+=============
+
+entity(name, fields, options)
+-----------------------------
+
+The framework's only view of an entity: a logical NAME, its
+FIELDS, and a PRIMARY KEY. Nothing else.
+
+    const { entity } = require('./lib');
+
+    const User = entity('User', {
+        id:    field(Types.id,     { primaryKey: true }),
+        email: field(Types.email,  { required: true, unique: true }),
+        age:   field(Types.integer)
+    });
+
+Shape
+-----
+
+    {
+        name: 'User',
+        fields: { ... },          // name -> field (docs/field.txt)
+        primaryKey: 'id'          // options.primaryKey || 'id'
+    }
+
+That is the WHOLE contract. There is no 'table', no 'timestamps',
+no 'softDelete'. Those are storage concerns (the adapter decides
+them) or application conventions (you express them as plain
+datetime fields).
+
+What entities do NOT carry
+--------------------------
+
+    - table / collection name      -> adapter decides (docs/persistence.txt)
+    - timestamps by default        -> you add created_at explicitly
+    - soft delete by default       -> you add deleted_at explicitly
+
+Example with explicit conventions:
+
+    const Article = entity('Article', {
+        id:      field(Types.id, { primaryKey: true }),
+        title:   field(Types.string, { required: true }),
+        slug:    field(Types.slug, { required: true, unique: true }),
+        author_id: field(Types.id, { required: true, foreignKey: 'User' }),
+        status:  field(Types.string, { default: 'draft' }),
+        created_at: field(Types.datetime, { default: () => new Date() }),
+        updated_at: field(Types.datetime, { default: () => new Date() }),
+        deleted_at: field(Types.datetime)
+    });
+
+Why so minimal?
+---------------
+
+The framework owns semantics that hold across EVERY persistence
+layer. Storage representation is a CHOICE — SQLite calls it a
+table, MongoDB calls it a collection. Entity definition stays
+universal; the adapter maps it.
+
+Entities compose into schemas:
+
+    const schema = Schema({ User, Article });
+    

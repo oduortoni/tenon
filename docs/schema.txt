@@ -1,0 +1,117 @@
+lib/schema.js
+=============
+
+Schema(entities)
+----------------
+
+A schema is a pure, database-agnostic description of your entities.
+It is a VALUE: you can merge it, register into it, validate against
+it, and hand it to an adapter to generate repositories.
+
+A schema is just a map of named entities:
+
+    const { Schema } = require('./lib');
+    const schema = Schema({ User, Article });      // entity objects
+
+See docs/entity.txt for how an entity looks.
+
+Four ways to build a schema
+---------------------------
+
+1. From entity objects (the declarative/default way):
+
+       const { Schema, entity, field, Types } = require('./lib');
+       const schema = Schema({
+           User: entity('User', { ... })
+       });
+
+2. From JSON (static constructor):
+
+       const schema = Schema.fromJSON(json);
+
+3. From JSON, composed ONTO an existing schema:
+
+       const schema = Schema(models).fromJSON(json);
+
+4. By composing whole schemas together with merge:
+
+       const combined = declared.merge(Schema.fromJSON(json));
+
+Every path produces the SAME kind of value: a schema. There is no
+privileged constructor. Add YAML later by writing Schema.fromYAML —
+it returns a schema and everything else is unchanged.
+
+Methods
+-------
+
+    schema.get(name)                      -> entity | undefined
+    schema.list()                         -> ['User', 'Article', ...]
+
+    schema.merge(other)                   -> new Schema
+        other may be a schema OR a raw entity map.
+        Returns a NEW schema; this one is untouched (immutable).
+
+    schema.register(entity)               -> new Schema (one entity)
+    schema.registerAll(entityMap)         -> new Schema (many entities)
+    schema.fromJSON(json)                 -> new Schema (JSON entities)
+
+    schema.validate(name, data)           -> { errors, data }
+        Validates data against the named entity (docs/validation.txt).
+
+    schema.repository(adapter, name)      -> repository
+        Generates a repository for one entity THROUGH the adapter
+        (docs/persistence.txt).
+
+Composing schemas — the functional way
+--------------------------------------
+
+Schemas are never mutated; every operation returns a new one:
+
+    const base    = Schema(models);                    // app models
+    const extended = base.fromJSON(moreModelsJson);     // ... + json
+    const final    = extended.merge(Schema.fromJSON(other));  // + more
+
+    // chain as far as you need
+    const everything = Schema(models)
+        .fromJSON(jsonA)
+        .fromJSON(jsonB)
+        .register(tagEntity);
+
+Immutability means you can keep the original around for tests and
+compare, without copying.
+
+Schema.fromJSON(json)
+---------------------
+
+The JSON shape:
+
+    {
+        entities: {
+            Widget: {
+                primaryKey: 'id',           // optional, defaults 'id'
+                fields: {
+                    id:    { type: 'id', primaryKey: true },
+                    label: { type: 'string', required: true },
+                    size:  { type: 'integer' },
+                    color: { type: 'string', default: 'blue' }
+                }
+            }
+        }
+    }
+
+Only universal semantics are read: fields, types, constraints,
+primary key. Storage concerns (table names, timestamps, soft
+delete) are never here — the adapter decides representation.
+
+Uses
+----
+
+    const schema = Schema(models).fromJSON(readFileSync('extra.json'));
+
+Repository wiring
+-----------------
+
+    const usersRepo = schema.repository(adapter, 'User');
+
+Reads the entity, then asks the adapter for a repository (so the
+repository is whatever the adapter knows how to build).

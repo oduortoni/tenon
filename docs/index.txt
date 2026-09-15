@@ -1,0 +1,317 @@
+=============================================================================
+ index.txt — the whole framework, and how to use it
+=============================================================================
+
+This is the entry point into the documentation. Read it first. Each
+lib/* file has its own doc (docs/server.txt, docs/schema.txt, ...)
+that you consult when you need the details of that primitive.
+
+THE IDEA
+--------
+
+The framework is a library of NAMED, FUNCTIONAL PRIMITIVES that you
+compose explicitly. It is NOT an application framework with a
+createApp() you configure. You write ordinary functions — handlers,
+middlewares, adapters — and wire them together in your own code,
+with your own names, in whatever order you choose.
+
+There is no hidden magic. If something does not exist in the
+framework, you write it — and it composes exactly like everything
+else, because everything is just functions and plain objects.
+
+The three layers (the contract that governs the codebase):
+
+  1. Framework   (lib/)             universal primitives + semantics.
+                                    Zero knowledge of any database or app.
+
+  2. Adapter     (your choice)      pluggable representation of storage.
+                                    Implements a documented contract
+                                    (docs/persistence.txt). You pick one
+                                    or write your own.
+
+  3. App         (your code)        entities, routes, middleware,
+                                    conventions. The framework never
+                                    reaches in here except through what
+                                    you inject.
+
+The public surface (lib/index.js)
+---------------------------------
+
+const {
+    // Server primitives
+    createHttpServer,
+
+    // Router primitives
+    createRouter,
+
+    // Request / response primitives
+    parseHttpRequest,
+    parseHttpRequestBody,
+    serializeResponseToHttp,
+
+    // Middleware composition primitives
+    compose_middlewares,
+    concat_middlewares,
+    identity_middleware,
+
+    // The ritual adapter: pure handler -> Node server handler
+    convertPureReqResHandlerToServerHandler,
+
+    // Schema primitives
+    Schema,
+    validate,
+    Types,
+    field,
+    entity,
+
+    // The persistence contract (documentation, not an implementation)
+    PersistenceContract
+} = require('tonis');          // in this repo: require('./lib')
+
+Everything else in lib/ (database.js, files.js, parsers.js, ...) is
+internal. If you need something not on this list, ask for it to be
+added or write it yourself and compose it.
+
+THE PRIMITIVES AT A GLANCE
+--------------------------
+
+createHttpServer(handle)                  -> server with .start/.stop
+createRouter()                            -> pure request -> response fn
+
+parseHttpRequest(req)                     -> pure Request object
+parseHttpRequestBody(req, request)        -> pure Request with body filled
+serializeResponseToHttp(response, res)    -> pure Response -> Node res
+
+compose_middlewares(...middlewares)       -> (handler) => wrapped handler
+concat_middlewares(...arrays)             -> one flat middleware array
+identity_middleware(handler)              -> handler (the no-op)
+
+convertPureReqResHandlerToServerHandler(h)-> Node (req, res) handler
+
+Schema(entities) / Schema.fromJSON(json)  -> a schema value
+validate(entityOrName, data)              -> { errors, data }
+Types.* , field(type, opts) , entity(...) -> building blocks of schemas
+PersistenceContract                       -> the adapter interface spec
+
+THE TWO SHAPES OF HANDLER
+-------------------------
+
+1. Pure handler (what YOU write):
+
+       (request) => Response     // or Promise<Response>
+
+   Reads a plain Request, returns a plain Response. No node:http.
+
+2. Server handler (what Node calls):
+
+       (http_req, http_res) => void
+
+   convertPureReqResHandlerToServerHandler bridges the two, doing
+   the parse -> dispatch -> serialize -> catch sequence. Write your
+   own bridge whenever you want custom logging/tracing/errors — the
+   primitives it uses are all exported (docs/handler.txt).
+
+=============================================================================
+ STYLE A — a project with an app/ folder (like this repository)
+=============================================================================
+
+This is a LOOSE structure. Nothing is imposed, but the split keeps
+your concerns visible. Suggested layout:
+
+    your-project/
+    ├── index.js                <- your composition (the only "glue")
+    ├── app/
+    │   ├── models/index.js     <- entities
+    │   ├── adapters/sqlite.js  <- your storage adapter choice
+    │   ├── middlewares/*.js    <- your middleware
+    │   ├── handlers/index.js   <- your route handlers
+    │   └── repositories/*.js   <- repo extensions (conventions)
+    ├── public/                 <- static files (if any)
+    └── database/               <- data files (if any)
+
+The entry point (index.js) is a linear, named sequence of choices:
+
+    const process = require('node:process');
+
+    // 0. Framework primitives
+    const {
+        createHttpServer,
+        createRouter,
+        compose_middlewares,
+        convertPureReqResHandlerToServerHandler,
+        Schema
+    } = require('./lib');
+
+    // 1. User choices
+    const { logger, cors, security, rateLimit } = require('./app/middlewares');
+    const { createSQLiteAdapter } = require('./app/adapters/sqlite');
+    const models = require('./app/models');
+    const handlers = require('./app/handlers');
+
+    const PORT = 9000;
+    const HOST = 'localhost';
+
+    // 2. Schema (pure)
+    const schema = Schema(models);
+
+    // 3. Adapter (side effects live inside the adapter)
+    const adapter = createSQLiteAdapter({
+        filename: './database/tonis.db',
+        tables: { ArticleTag: 'article_tags' }
+    });
+
+    // 4. Initialize the schema in the database
+    adapter.initializeSchema(schema)
+        .then(() => console.log('Schema initialized'))
+        .catch(err => { console.error(err); process.exit(1); });
+
+    // 5. Repositories (through the adapter, from the schema)
+    const usersRepo    = schema.repository(adapter, 'User');
+    const articlesRepo = schema.repository(adapter, 'Article');
+    const commentsRepo = schema.repository(adapter, 'Comment');
+
+    // 6. Application conventions stay in user space
+    articlesRepo.findBySlug = (slug) =>
+        articlesRepo.findBy({ slug }).then(rows => rows[0] || null);
+    usersRepo.softDelete = (id) =>
+        usersRepo.update(id, { deleted_at: new Date() });
+
+    // 7. Routes (pure registration; execution happens per request)
+    const router = createRouter();
+    router.get('/', handlers.home);
+    router.get('/css/*', handlers.staticFiles);
+    router.post('/api/users', handlers.createUser(usersRepo, schema));
+    router.get('/api/users/:id', handlers.getUserById(usersRepo));
+    router.get('/api/articles', handlers.getAllArticles(articlesRepo));
+    router.post('/api/articles', handlers.postArticle(articlesRepo, schema));
+    router.post('/api/articles/:articleId/comments',
+        handlers.createComment(commentsRepo, schema));
+
+    // 8. Middleware pipeline (pure composition, order visible)
+    const pipeline = compose_middlewares(
+        logger, cors(), security(), rateLimit(100, 60000)
+    );
+
+    // 9. Compose the pure request handler
+    const handleRequest = pipeline(router);
+
+    // 10. Adapt to a Node server handler (one named, replaceable call)
+    const requestHandler =
+        convertPureReqResHandlerToServerHandler(handleRequest);
+
+    // 11. Start
+    const server = createHttpServer(requestHandler);
+    server.start(PORT, HOST)
+        .then(() => console.log(`Server listening on ${PORT}`))
+        .catch(err => { console.error(err); process.exit(1); });
+
+    // 12. Graceful shutdown
+    process.on('SIGTERM', () => {
+        server.stop().then(() => process.exit(0));
+    });
+
+Every choice above is visible and replaceable:
+  - different middleware order?      -> recompose
+  - different router?                -> pass a different one to the pipeline
+  - different adapter/database?      -> build a different adapter
+  - your own request handling?       -> write your own bridge (docs/handler.txt)
+
+=============================================================================
+ STYLE B — a single file, everything inline
+=============================================================================
+
+The framework imposes NO directory structure. A fully working app
+in one file, for a small service or a demo:
+
+    // app.js
+    const {
+        createHttpServer,
+        createRouter,
+        compose_middlewares,
+        convertPureReqResHandlerToServerHandler,
+        Schema, Types, field, entity,
+        PersistenceContract        // you will read this when writing adapters
+    } = require('tonis');          // in this repo: require('./lib')
+
+    // --- models, inline ---
+    const Todo = entity('Todo', {
+        id:      field(Types.id, { primaryKey: true }),
+        text:    field(Types.string, { required: true }),
+        done:    field(Types.boolean, { default: false }),
+        created_at: field(Types.datetime, { default: () => new Date() })
+    });
+    const schema = Schema({ Todo });
+
+    // --- adapter: use the in-memory one (or the sqlite adapter) ---
+    const { createMemoryAdapter } = require('./my-memory-adapter');
+    const adapter = createMemoryAdapter();
+    adapter.initializeSchema(schema);
+
+    // --- repository + conventions, inline ---
+    const todos = schema.repository(adapter, 'Todo');
+
+    // --- middleware, inline ---
+    const logger = (handler) => async (request) => {
+        console.log(request.method, request.path);
+        return handler(request);
+    };
+
+    // --- router, inline ---
+    const router = createRouter();
+    router.get('/todos', async (req) =>
+        ({ status: 200,
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(await todos.findAll()) }));
+
+    router.post('/todos', async (req) => {
+        const result = schema.validate('Todo', req.body);
+        if (result.errors.length > 0)
+            return { status: 422, body: JSON.stringify(result.errors) };
+        const todo = await todos.create(result.data);
+        return { status: 201,
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify(todo) };
+    });
+
+    // --- compose, adapt, start ---
+    const pipeline = compose_middlewares(logger);
+    const server = createHttpServer(
+        convertPureReqResHandlerToServerHandler(pipeline(router))
+    );
+    server.start(9000).then(() => console.log('up'));
+
+Same primitives, same order, zero scaffolding. You could not have
+"invented" less — this is the whole framework.
+
+=============================================================================
+ HOW DO I ...
+=============================================================================
+
+ ...define my data?                    docs/entity.txt, docs/field.txt,
+                                       docs/types.txt, docs/validation.txt
+ ...turn models into a schema?         docs/schema.txt
+ ...build repositories?                docs/persistence.txt, docs/schema.txt,
+                                       docs/repository.txt
+ ...write route handlers?              docs/router.txt, docs/request.txt,
+                                       docs/response.txt
+ ...compose middleware?                docs/middleware.txt
+ ...serve HTTP?                        docs/server.txt, docs/handler.txt
+ ...write my own adapter?              docs/persistence.txt
+ ...write my own server handler?       docs/handler.txt, docs/request.txt,
+                                       docs/response.txt
+
+THE FOUR RULES (how the framework stays honest)
+-----------------------------------------------
+
+  A  The framework never require()s from your app/.
+  B  The framework never branches on adapter type — it only calls
+     the persistence contract.
+  C  You see every primitive and every choice in your own code.
+     The sole exception is the ritual adapter
+     convertPureReqResHandlerToServerHandler — which you can
+     replace yourself because its parts are exported.
+  D  Schema composition stays visible: Schema(entities)/.fromJSON()
+     is your one link between models and the framework.
+
+If a rule ever feels violated, that is a bug in the framework —
+not in your usage.

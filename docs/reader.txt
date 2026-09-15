@@ -1,0 +1,69 @@
+lib/reader.js
+=============
+
+Reader — a tiny Reader monad (dependency injection as a value).
+
+A Reader wraps a function that takes an ENVIRONMENT and returns a
+value. This lets you describe computations that need access to
+dependencies WITHOUT passing the dependency everywhere:
+
+    const dbReader = Reader((env) => env.database);
+    // later: dbReader.run({ database: myDb })  -> myDb
+
+Why a Reader?
+-------------
+
+It keeps dependency-aware logic pure and testable: build a Reader,
+run it later with whatever environment you choose (real database in
+production, a stub in tests). You do not have to use it to use the
+framework — it is an available primitive for your own app code.
+
+The object
+----------
+
+    Reader(runFun)
+        Creates a reader.
+
+    reader.run(env)
+        Runs it with an environment, returns a Promise.
+
+    reader.map(f)
+        Transform the RESULT. Returns a new Reader.
+
+    reader.flatMap(f)
+        Chain to the next Reader step (f: value -> Reader).
+        Returns a new Reader.
+
+Class-level helpers
+-------------------
+
+    Reader.unit(value)
+        A Reader that always resolves to value.
+
+    Reader.lift(fn)
+        A Reader whose run is fn(env) (returns a Promise).
+
+    Reader.run(reader, env)
+        Convenience for reader.run(env).
+
+    Reader.compose(reader1, reader2)
+        Runs reader1 then reader2 (in the same env), for the
+        side-effect-y sequencing.
+
+Example
+-------
+
+    const Reader = require('./lib/reader').Reader;
+
+    const getUser = (id) => Reader((env) =>
+        env.users.findById(id)
+    );
+
+    const welcome = getUser(7)
+        .map(user => `Hello ${user.name}`);
+
+    welcome.run({ users: usersRepo }).then(console.log);
+
+This is an optional tool, not a requirement. The framework prefers
+explicit composition (functional primitives in lib/index.txt) over
+implicit environment threading.

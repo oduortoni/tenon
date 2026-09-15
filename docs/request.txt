@@ -1,0 +1,70 @@
+lib/request.js
+==============
+
+Two primitives convert Node's raw HTTP stream into the framework's
+"pure Request" shape — the shape your handlers and middleware speak.
+
+Why pure?
+---------
+
+Your handlers should not know about node:http. They read a plain
+object (method, path, headers, body) and return a Response object.
+This keeps the framework's core free of any Node noise — which is
+exactly why it can later run on other adapters.
+
+The pure Request shape
+----------------------
+
+    {
+        method:  'GET' | 'POST' | ...      // uppercase
+        url:     URL instance              // what you said /api/x?a=b
+        path:    '/api/x'                  // pathname only
+        query:   { a: 'b' }                // parsed query string
+        headers: { 'content-type': '...' } // lowercased keys
+        cookies: { name: 'value' }         // parsed from Cookie header
+        client:  { ip, port, userAgent, accept, acceptLanguage }
+        body:    null | parsed-body        // filled in async stage
+        params:  {}                        // filled by the router
+    }
+
+parseHttpRequest(req)
+---------------------
+
+Synchronously turns a Node IncomingMessage into the Request object
+ABOVE, with body: null and params: {}.
+
+    const request = parseHttpRequest(req);
+    // request.method, request.path, request.query, request.cookies ...
+
+parseHttpRequestBody(req, parsedRequest)
+----------------------------------------
+
+Asynchronously reads the request stream and parses the body
+according to the Content-Type header. Mutates parsedRequest.body
+(and parsedRequest.bodyError on failure) and resolves the same
+object.
+
+    const request = parseHttpRequest(req);
+    await parseHttpRequestBody(req, request);
+    // request.body is now parsed JSON/form/text, or null
+
+Supported content types (see docs/parsers.txt):
+
+    application/json
+    application/x-www-form-urlencoded
+    text/plain
+
+You normally never call these yourself
+---------------------------------------
+
+They are the internals of convertPureReqResHandlerToServerHandler
+(docs/handler.txt), which does:
+
+    const request = parseHttpRequest(req);
+    await parseHttpRequestBody(req, request);
+    const response = await handleRequest(request);
+    serializeResponseToHttp(response, res);
+
+They are exported so you CAN write your own adapter if you want
+logging, tracing, custom body parsers, or a different request
+shaping. Nothing is privileged.

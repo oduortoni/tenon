@@ -9,8 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
     password TEXT NOT NULL,
     name TEXT NOT NULL,
     role TEXT DEFAULT 'user',
-    created_at DATETIME DEFAULT (CURRENT_TIMESTAMP),        -- Added automatically via timestamps: true
-    updated_at DATETIME DEFAULT (CURRENT_TIMESTAMP)         -- Added automatically via timestamps: true
+    created_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
+    updated_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
+    deleted_at DATETIME
 );
 
 -- Sessions
@@ -33,11 +34,12 @@ CREATE TABLE IF NOT EXISTS articles (
     slug TEXT UNIQUE NOT NULL,
     content TEXT NOT NULL,
     excerpt TEXT,
-    author_id INTEGER NOT NULL,                         -- Handled by findByAuthor/getWithAuthor
-    status TEXT DEFAULT 'draft',                        -- Handled by findPublished/findDrafts
-    published_at DATETIME,                              -- Managed by publish() / unpublish()
-    created_at DATETIME DEFAULT (CURRENT_TIMESTAMP),      -- Added automatically via timestamps: true
-    updated_at DATETIME DEFAULT (CURRENT_TIMESTAMP),      -- Added automatically via timestamps: true
+    author_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'draft',
+    published_at DATETIME,
+    created_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
+    updated_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
+    deleted_at DATETIME,
     FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
 );
 -- Optimize search() performance (indexes for faster filtering/sorting)

@@ -1,0 +1,63 @@
+lib/server.js
+=============
+
+createHttpServer(handle)
+------------------------
+
+Creates a Node-compatible HTTP server. This is the framework's
+"server primitive": the thing that actually listens on a port and
+hands raw Node (req, res) objects to a handler.
+
+Signature
+---------
+
+    createHttpServer(handle) -> server
+
+    handle   (http_req, http_res) -> void
+             A Node HTTP listener. In practice you will NOT write
+             this yourself. You hand it the output of
+             convertPureReqResHandlerToServerHandler (see docs/handler.txt).
+
+The returned server object has two extra methods layered on top of
+the raw Node server:
+
+    server.start(port = 9000, host = 'localhost') -> Promise
+        Starts listening. Resolves once the server is accepting
+        connections. Rejects if it cannot bind.
+
+    server.stop() -> Promise
+        Closes the server gracefully. Resolves once all open
+        connections have been closed.
+
+Everything else on the object is the plain Node http.Server
+(server.on, server.listen, ...). It is NOT hidden from you.
+
+Example
+-------
+
+    const { createHttpServer } = require('./lib');
+
+    const server = createHttpServer(ourHttpRequestListener);
+
+    server.start(9000, 'localhost')
+        .then(() => console.log('listening'))
+        .catch(err => process.exit(1));
+
+    process.on('SIGTERM', () => {
+        server.stop().then(() => process.exit(0));
+    });
+
+Why a primitive and not a builder?
+----------------------------------
+
+createHttpServer is deliberately small: it takes ONE argument (a
+handler) and returns a value (the server). There is no app.listen(),
+no hidden request parsing, no magic. The order of operations is
+visible in YOUR code:
+
+    1. you parse  -> convertPureReqResHandlerToServerHandler
+    2. you start  -> server.start(port, host)
+
+If you need HTTPS, connection limits, or logging of connections,
+you either extend this server or write your own createXxxServer —
+the primitives it needs (the handler conversion) are exported.
