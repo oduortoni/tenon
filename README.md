@@ -173,16 +173,19 @@ Every todo is stored in the in-memory adapter, so a server restart clears the li
 
 An adapter is the pluggable representation of your storage. It implements one documented **persistence contract**; the framework only ever calls through that contract and never branches on adapter type. That is what makes storage swappable without touching your app code.
 
-An adapter must provide:
+An adapter must provide five methods — a storage-agnostic contract with no SQL, no query language, no storage-speak:
 
 | Member | Purpose |
 |---|---|
-| `translateSchema(schema)` | render the schema to storage DDL (string) |
+| `translateSchema(schema)` | render the schema to the adapter's native format (e.g. DDL for SQL) |
 | `initializeSchema(schema)` | create the storage structure (tables/collections) |
 | `generateRepository(schema, entity)` | build a CRUD repository for one entity |
-| `migrate(migration)` | apply a single migration |
+| `migrate(migration)` | apply a single migration (adapter's dialect) |
 | `migrator()` | `{ getCurrentVersion, setVersion, run }` migration tracking |
-| `database` | `{ query, execute, get, transaction, close }` |
+
+`generateRepository` returns the only surface your handlers touch — `findAll`, `findById`, `findBy`, `create`, `update`, `delete`, `count`. This shape is identical across all adapters.
+
+(`adapter.database` is NOT part of the contract — it's the adapter's own escape hatch for your ad-hoc raw queries, and its shape varies per adapter. See `docs/persistence.txt`.)
 
 The repo ships with a SQLite adapter:
 
@@ -198,7 +201,7 @@ adapter.initializeSchema(schema);
 const users = schema.repository(adapter, 'User');
 ```
 
-Write your own for anything else — Postgres, MongoDB, an in-memory store (see quick start), or a mock for tests. As long as it honors the contract, `schema.repository(adapter, name)` works unchanged. The full contract and a writing-your-own guide live in `docs/persistence.txt`.
+Write your own for anything else — Postgres, MongoDB, an in-memory store (see quick start), or a mock for tests. As long as it implements the five contract methods, `schema.repository(adapter, name)` works unchanged. A complete in-memory adapter example and the writing-your-own guide live in `docs/persistence.txt`.
 
 ## Structure
 

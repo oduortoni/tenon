@@ -5,64 +5,193 @@ PersistenceContract — the adapter plug point
 --------------------------------------------
 
 PersistenceContract is a SPECIFICATION, not an implementation. It
-documents the one interface every storage adapter must implement.
-The framework never imports an adapter and never branches on
-adapter type: it calls through this contract and nothing else.
+documents the one interface storage adapters plug into. tenon never
+imports an adapter and never branches on adapter type: it calls
+through this contract and nothing else.
 
-Who reads this?
----------------
+The guarantee. Your app talks to a repository; tenon talks to the
+persistence contract; the adapter talks to whatever store it knows.
+There is NO SQL in the framework-facing contract — that is what
+makes adapters genuinely storage-agnostic.
 
-  1. You, if you want to understand how repositories get built.
-  2. You, if you want to write a new adapter (another database,
-     an in-memory store, a mock for tests).
+-------------------------------------------------------------------------
+TIER 1 — THE FRAMEWORK CONTRACT (no SQL anywhere)
+-------------------------------------------------------------------------
 
-The contract
-------------
+An adapter is an object. It must implement exactly these five:
 
-An adapter is an object. Required members:
-
-    translateSchema(schema)            -> string of DDL
-        Renders the schema to storage-specific DDL (e.g. CREATE
-        TABLE statements). Pure: no side effects.
+    translateSchema(schema)            -> adapter-native format
+        Renders the schema the way THIS store sees it. For SQL
+        adapters that is DDL text; for MongoDB it might be
+        collection specs; for an in-memory adapter it may return
+        nothing. Pure: no side effects.
 
     initializeSchema(schema)           -> Promise
-        Applies the schema to storage (creates tables).
+        Applies the rendered schema to the live store (creates
+        tables, collections, whatever). Called explicitly by you.
 
     generateRepository(schema, entity) -> repository object
-        Builds a CRUD repository for ONE entity. Called by
-        schema.repository(adapter, name).
+        Builds a CRUD repository for ONE entity. This is the
+        primary thing tenon calls, via schema.repository.
 
     migrate(migration)                 -> Promise
-        Applies a single migration.
+        Applies a single migration. Migrations are expressed in the
+        adapter's own dialect (SQL, function hooks, etc.). tenon
+        just calls it and trusts the adapter.
 
     migrator()                         -> { getCurrentVersion, setVersion, run }
-        Versioned migration tracking.
+        Versioned migration tracking. Adapter-owned.
 
-    database = {
-        query(sql, params)             -> Promise<Row[]>
-        execute(sql, params)           -> Promise<{ lastID, changes }>
-        get(sql, params)               -> Promise<Row | null>
-        transaction(operations)        -> Promise<results>
-        close()                        -> Promise<void>
-    }
+None of these mention SQL, a query language, or storage-speak.
 
-What the framework owes you
----------------------------
+-------------------------------------------------------------------------
+THE REPOSITORY SHAPE (what your handlers compose against)
+-------------------------------------------------------------------------
 
-The framework guarantees it will only ever call through this
-interface. It will never:
+The object generateRepository returns is the ONLY surface your route
+handlers touch. It must provide:
 
-  - require() your adapter
-  - check adapter.type / adapter.kind / instanceof
-  - reach into adapter internals
+    findAll(options?)                -> Promise<Row[]>
+    findById(id)                     -> Promise<Row | null>
+    findBy(criteria)                 -> Promise<Row[]>
+    create(data)                     -> Promise<Row>
+    update(id, changes)              -> Promise<Row | null>
+    delete(id)                       -> Promise<void>
+    count(criteria?)                 -> Promise<number>
 
-That is what makes adapters plug-compatible: swap
-createSQLiteAdapter for createMemoryAdapter and the framework is
-unaffected. It is also what lets you mock storage trivially in
-tests by writing a small stub adapter.
+Zero SQL, zero storage-speak. Rows are plain objects. This is what
+stays identical no matter which adapter you choose.
 
-Using schema.repository
------------------------
+-------------------------------------------------------------------------
+TIER 2 — ADAPTER-LOCAL HANDLE (escape hatch, NOT a contract)
+-------------------------------------------------------------------------
+
+    adapter.database is NOT part of tenon's contract.
+
+It is whatever the adapter needs to expose for your own ad-hoc raw
+queries. tenon never calls it; its shape varies per adapter:
+
+    SQLite adapter:        { query(sql, params), execute(sql, params),
+                             get(sql, params), transaction(ops), close() }
+    PostgreSQL adapter:    { query(text, params), done() }
+    MongoDB adapter:       { collection(name) }
+    In-memory adapter:     { all(), run(), get() }
+
+Use it when YOU need raw access. Do not build your handlers on it —
+close over a repository instead, so storage access stays
+composable, testable, and swappable.
+
+-------------------------------------------------------------------------
+WHAT TENON GUARANTEES (the four rules, adapter edition)
+-------------------------------------------------------------------------
+
+  - A   tenon never require()s from your app.
+  - B   tenon never checks adapter.type / adapter.kind / instanceof.
+        It calls the five contract methods and nothing else.
+  - C   you choose the adapter explicitly; tenon keeps no hidden
+        storage.
+  - D   schema.repository(adapter, name) is your one visible link
+        between models and storage.
+
+Swap createSQLiteAdapter for createInMemoryAdapter and the
+framework is unaffected. That is also what lets you mock storage
+trivially in tests: write a small stub adapter.
+
+-------------------------------------------------------------------------
+WRITING YOUR OWN ADAPTER — a full in-memory example
+-------------------------------------------------------------------------
+
+The quickest working adapter: keep rows in a plain object. It
+implements the whole contract and shows exactly where storage lives
+(nowhere — the store is a closure variable).
+
+    const { Schema, Types, field, entity } = require('tenon');
+
+    const createInMemoryAdapter = () => {
+        const store = {};
+        const rowsFor = (name) => (store[name] ||= []);
+        const nextId = (entity) =>
+            rowsFor(entity.name).reduce((max, r) => Math.max(max, r.id), 0) + 1;
+
+        const generateRepository = (schema, entity) => {
+            const rows = rowsFor(entity.name);
+            return {
+                findAll: async () => rows.map(r => ({ ...r })),
+                findById: async (id) => rows.find(r => r.id === id) || null,
+                findBy: async (criteria) => rows.filter(r =>
+                    Object.entries(criteria).every(([k, v]) => r[k] === v)),
+                create: async (data) => {
+                    const row = { ...data, [entity.primaryKey]: nextId(entity) };
+                    rows.push(row);
+                    return { ...row };
+                },
+                update: async (id, changes) => {
+                    const row = rows.find(r => r.id === id);
+                    if (row) Object.assign(row, changes);
+                    return row ? { ...row } : null;
+                },
+                delete: async (id) => {
+                    const i = rows.findIndex(r => r.id === id);
+                    if (i !== -1) rows.splice(i, 1);
+                },
+                count: async (criteria = {}) =>
+                    Object.keys(criteria).length
+                        ? rows.filter(r => Object.entries(criteria)
+                            .every(([k, v]) => r[k] === v)).length
+                        : rows.length
+            };
+        };
+
+        return {
+            // Tier 2 escape hatch — your own raw access, your own shape
+            database: {
+                query: async () => Object.entries(store).map(([k, v]) => ({ k, v })),
+                execute: async () => ({}),
+                get: async () => null,
+                transaction: async (ops) => { for (const op of ops) await op(); },
+                close: async () => {}
+            },
+            // Tier 1 framework contract — five methods
+            translateSchema: () => '',
+            initializeSchema: async () => {},
+            generateRepository,
+            migrate: async () => {},
+            migrator: () => ({
+                getCurrentVersion: async () => 0,
+                setVersion: async () => {},
+                run: async () => ({ applied: [], currentVersion: 0 })
+            })
+        };
+    };
+
+Usage is identical to the SQLite adapter:
+
+    const { Schema, entity, field, Types } = require('tenon');
+    const schema = Schema({
+        Todo: entity('Todo', {
+            id: field(Types.id, { primaryKey: true }),
+            text: field(Types.string, { required: true }),
+            done: field(Types.boolean, { default: false })
+        })
+    });
+
+    const adapter = createInMemoryAdapter();
+    await adapter.initializeSchema(schema);
+    const todos = schema.repository(adapter, 'Todo');
+
+    await todos.create({ text: 'hello', done: true });
+    const all = await todos.findAll();          // [{ id: 1, text: ..., done: true }]
+
+    // ad-hoc raw access, if you want it — via YOUR escape hatch
+    // (adapter.database), never through the repository.
+    await adapter.database.query();
+
+In-memory data dies with the process. Use the SQLite adapter when
+you need persistence — same contract, same calls.
+
+-------------------------------------------------------------------------
+USING schema.repository
+-------------------------------------------------------------------------
 
 The one framework-side entry point:
 
@@ -79,18 +208,10 @@ Your adapter decides the representation
 Example — the SQLite adapter maps entity names to table names:
 
     createSQLiteAdapter({
-        filename: './database/tonis.db',
+        filename: './database/tenon.db',
         tables: { ArticleTag: 'article_tags' }   // override pluralization
     });
 
 The entity itself knows nothing about 'article_tags'; that is the
-adapter's choice, layered on in config by YOU.
-
-Writing your own adapter
-------------------------
-
-Implement the contract above. Translate entities to whatever your
-storage speaks. Return a repository object with at least
-findAll/findById/findBy/create/update/delete/count. Those are the
-shapes your handlers compose against. Nothing else is required.
-
+adapter's choice, layered on in config by YOU. The repository your
+handlers receive stays storage-agnostic either way.
