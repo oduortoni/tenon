@@ -124,8 +124,7 @@ your concerns visible. Suggested layout:
     │   ├── models/index.js     <- entities
     │   ├── adapters/sqlite.js  <- your storage adapter choice
     │   ├── middlewares/*.js    <- your middleware
-    │   ├── handlers/index.js   <- your route handlers
-    │   └── repositories/*.js   <- repo extensions (conventions)
+    │   └── handlers/index.js   <- your route handlers
     ├── public/                 <- static files (if any)
     └── database/               <- data files (if any)
 
@@ -290,8 +289,7 @@ Same primitives, same order, zero scaffolding. You could not have
  ...define my data?                    docs/entity.txt, docs/field.txt,
                                        docs/types.txt, docs/validation.txt
  ...turn models into a schema?         docs/schema.txt
- ...build repositories?                docs/persistence.txt, docs/schema.txt,
-                                       app/repository.txt (app-level SQL helper)
+ ...build repositories?                docs/persistence.txt, docs/schema.txt
  ...write route handlers?              docs/router.txt, docs/request.txt,
                                        docs/response.txt
  ...compose middleware?                docs/middleware.txt

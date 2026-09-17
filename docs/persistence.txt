@@ -202,6 +202,24 @@ Which simply does:
     const entity = schema.get('User');
     return adapter.generateRepository(schema, entity);
 
+EXTENDING A REPOSITORY (application conventions)
+-------------------------------------------------------------------------
+
+Repositories are plain objects. Extend them wherever you build them,
+no subclassing, no framework hooks:
+
+    const usersRepo = schema.repository(adapter, 'User');
+
+    // ad-hoc query — the adapter's raw handle, your own SQL
+    usersRepo.findBySlug = (slug) =>
+        usersRepo.findBy({ slug }).then(rows => rows[0] || null);
+
+    usersRepo.softDelete = (id) =>
+        usersRepo.update(id, { deleted_at: new Date() });
+
+Conventions stay in YOUR code; the framework never needs to know
+about soft delete or slugs.
+
 Your adapter decides the representation
 ---------------------------------------
 

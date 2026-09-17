@@ -158,20 +158,3 @@ test('unique constraints are enforced', async () => {
         /UNIQUE constraint failed/
     );
 });
-
-test('createRepository is a plain CRUD helper — no auto-stamps', async () => {
-    const { adapter } = await setup();
-    const { createRepository } = require('../app/repository');
-    const repo = createRepository(adapter.database, 'users', { primaryKey: 'id' });
-    const created = await repo.create({
-        email: 's@simple.com',
-        password: 'p',
-        name: 'S',
-        created_at: '2024-01-01T00:00:00.000Z',
-        updated_at: '2024-01-01T00:00:00.000Z'
-    });
-    assert.ok(created.id > 0);
-    assert.equal(created.created_at, '2024-01-01T00:00:00.000Z');
-    assert.equal(created.updated_at, '2024-01-01T00:00:00.000Z');
-    assert.equal(await repo.count(), 2);
-});
