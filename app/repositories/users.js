@@ -4,7 +4,7 @@
  * Timestamps are explicit here: every create/update supplies created_at / updated_at
  * directly, as an application convention, not a framework feature.
  */
-const { createRepository } = require('../../lib/repository');
+const { createRepository } = require('../repository');
 
 const createUserRepository = (db) => {
     const repo = createRepository(db, 'users', { primaryKey: 'id' });

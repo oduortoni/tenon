@@ -121,6 +121,7 @@ const createSQLiteAdapter = (config) => {
     const initializeSchema = async (schema) => {
         const ddl = translateSchema(schema);
         db.exec(ddl);
+        return ddl;
     };
 
     // --- Persistence interface: run a single migration ---

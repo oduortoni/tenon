@@ -1,7 +1,7 @@
 /**
  * Comments repository — application-level.
  */
-const { createRepository } = require('../../lib/repository');
+const { createRepository } = require('../repository');
 
 const createArticleCommentsRepository = (db) => {
     const repo = createRepository(db, 'comments', { primaryKey: 'id' });

@@ -161,7 +161,7 @@ test('unique constraints are enforced', async () => {
 
 test('createRepository is a plain CRUD helper — no auto-stamps', async () => {
     const { adapter } = await setup();
-    const { createRepository } = require('../lib/repository');
+    const { createRepository } = require('../app/repository');
     const repo = createRepository(adapter.database, 'users', { primaryKey: 'id' });
     const created = await repo.create({
         email: 's@simple.com',

@@ -13,7 +13,7 @@ test('schema composes all registered entities', () => {
     const schema = createDefaultSchema();
     assert.deepEqual(
         schema.list(),
-        ['User', 'Article', 'Comment', 'Tag', 'ArticleTag']
+        ['User', 'Article', 'Comment', 'Tag', 'ArticleTag', 'Log']
     );
     assert.ok(schema.get('User'));
     assert.ok(schema.get('Article'));
@@ -205,7 +205,7 @@ test('schema.merge composes two schemas into one', () => {
     const combined = declared.merge(fromJson);
     assert.deepEqual(
         combined.list().sort(),
-        ['User', 'Article', 'Comment', 'Tag', 'ArticleTag', 'Widget'].sort()
+        ['User', 'Article', 'Comment', 'Tag', 'ArticleTag', 'Log', 'Widget'].sort()
     );
 });
 

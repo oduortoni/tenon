@@ -20,11 +20,15 @@ const schema = Schema(models);
 
 const adapter = createSQLiteAdapter({
     filename: './database/tonis.db',
-    tables: { ArticleTag: 'article_tags' }
+    tables: { ArticleTag: 'article_tags', Log: 'debug_logs' }
 });
 
 adapter.initializeSchema(schema)
-    .then(() => console.log('Schema initialized'))
+    .then(schema => {
+        console.log('Schema initialized');
+        // uncomment to view the schema that was created
+        // console.log(schema);
+    })
     .catch(err => {
         console.error('Schema initialization failed:', err);
         process.exit(1);

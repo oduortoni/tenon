@@ -22,7 +22,8 @@ test('translateSchema emits CREATE TABLE statements for every entity', () => {
     assert.match(ddl, /CREATE TABLE IF NOT EXISTS articles/);
     assert.match(ddl, /CREATE TABLE IF NOT EXISTS comments/);
     assert.match(ddl, /CREATE TABLE IF NOT EXISTS tags/);
-    assert.ok((ddl.match(/CREATE TABLE/g) || []).length === 5);
+    assert.match(ddl, /CREATE TABLE IF NOT EXISTS logs/);
+    assert.ok((ddl.match(/CREATE TABLE/g) || []).length === 6);
 });
 
 test('translateSchema renders columns, constraints and foreign keys', () => {
@@ -73,7 +74,8 @@ test('initializeSchema is idempotent', async () => {
     const tables = await adapter.database.query(
         "SELECT name FROM sqlite_master WHERE type = 'table'"
     );
-    assert.equal(tables.length, 6);
+    // 6 entity tables + sqlite_sequence (AUTOINCREMENT bookkeeping)
+    assert.equal(tables.length, 7);
 });
 
 test('adapter.migrate applies a raw SQL migration', async () => {

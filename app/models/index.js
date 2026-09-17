@@ -53,5 +53,11 @@ const ArticleTag = entity('ArticleTag', {
     tag_id: field(Types.id, { required: true, foreignKey: 'Tag' })
 });
 
-module.exports = { User, Article, Comment, Tag, ArticleTag };
+const Log = entity('Log', {
+    id: field(Types.id, { primaryKey: true }),
+    message: field(Types.string, { required: true }),
+    created_at: field(Types.datetime, { default: () => new Date() })
+});
+
+module.exports = { User, Article, Comment, Tag, ArticleTag, Log };
 

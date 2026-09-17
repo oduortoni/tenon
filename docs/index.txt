@@ -291,7 +291,7 @@ Same primitives, same order, zero scaffolding. You could not have
                                        docs/types.txt, docs/validation.txt
  ...turn models into a schema?         docs/schema.txt
  ...build repositories?                docs/persistence.txt, docs/schema.txt,
-                                       docs/repository.txt
+                                       app/repository.txt (app-level SQL helper)
  ...write route handlers?              docs/router.txt, docs/request.txt,
                                        docs/response.txt
  ...compose middleware?                docs/middleware.txt

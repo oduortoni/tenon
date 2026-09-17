@@ -4,7 +4,7 @@
  * Timestamps and publishing helpers live here as application conventions,
  * not framework features.
  */
-const { createRepository } = require('../../lib/repository');
+const { createRepository } = require('../repository');
 
 const createArticleRepository = (db) => {
     const repo = createRepository(db, 'articles', { primaryKey: 'id' });

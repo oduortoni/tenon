@@ -86,3 +86,4 @@ const createRepository = (db, table, config = {}) => {
 };
 
 module.exports = { createRepository };
+
