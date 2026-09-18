@@ -38,6 +38,8 @@ const usersRepo = schema.repository(adapter, 'User');
 const articlesRepo = schema.repository(adapter, 'Article');
 const commentsRepo = schema.repository(adapter, 'Comment');
 
+handlers.createTestUserAndArticles(usersRepo, articlesRepo);
+
 articlesRepo.findBySlug = (slug) =>
     articlesRepo.findBy({ slug }).then(results => results[0] || null);
 
