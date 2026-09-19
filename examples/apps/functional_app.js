@@ -40,11 +40,11 @@ const {
     required,
     isEmail,
     minLength
-} = require('./lib');
+} = require('../../lib');
 
 const {
     createSQLiteAdapter
-} = require('./app/adapters/sqlite.js');
+} = require('../../app/adapters/sqlite.js');
 
 
 /* -------------------------------------------------------------------------- */
@@ -968,7 +968,7 @@ async function setupApplication() {
         /* ----------------------------- Adapter ---------------------------- */
 
         const adapter = createSQLiteAdapter({
-            filename: './functional_todos.db',
+            filename: './database/functional_app_todos.db',
             tables: {},
             functional: true
         });
