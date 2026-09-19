@@ -1568,7 +1568,7 @@ const createSQLiteAdapter = (config) => {
             transaction,
             close
         },
-
+        tableName,
 
         /* Persistence contract */
         translateSchema,

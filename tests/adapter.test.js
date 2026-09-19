@@ -113,13 +113,19 @@ test('transaction rolls back on failure', async () => {
     const schema = createDefaultSchema();
     await adapter.initializeSchema(schema);
 
+    /*
+     * `transaction` is synchronous because SQLite's DatabaseSync is
+     * synchronous. `assert.rejects` requires a function or a Promise,
+     * so wrap the call in a thunk.
+     */
     await assert.rejects(
-        adapter.database.transaction([
-            async () => adapter.database.execute(
+        async () => adapter.database.transaction([
+            () => adapter.database.execute(
                 "INSERT INTO users (email, password, name) VALUES ('a@b.com', 'x', 'A')"
             ),
-            async () => { throw new Error('boom'); }
-        ])
+            () => { throw new Error('boom'); }
+        ]),
+        /boom/
     );
 
     const users = await adapter.database.query('SELECT * FROM users');
@@ -166,3 +172,4 @@ test('tableName uses config.tables override', () => {
     const adapter = newAdapter();
     assert.equal(adapter.tableName('ArticleTag'), 'article_tags');
 });
+
