@@ -1,0 +1,189 @@
+FUNCTIONAL PATTERNS IN TENON
+============================
+
+OVERVIEW
+--------
+The framework now supports functional programming patterns while maintaining its
+core philosophy of explicit composition and no hidden magic. These patterns
+provide safer error handling, pure business logic, and composable operations.
+
+KEY ADDITIONS
+-------------
+
+1. Either Monad (lib/either.js)
+2. Functional Models (lib/model.js)
+3. Enhanced Adapters with Functional Extensions
+4. Query Builders with Either monad support
+
+EITHER MONAD
+------------
+
+The Either monad represents values that are either Right (success) or Left (error).
+This provides explicit error handling as data, avoiding try/catch spaghetti.
+
+```javascript
+const { Either } = require('tenon');
+
+// Create a success value
+const success = Either.Right({ id: 1, name: 'Alice' });
+
+// Create an error value  
+const error = Either.Left('User not found');
+
+// Handle both cases explicitly
+result.fold(
+  error => console.error('Error:', error),
+  user => console.log('Success:', user)
+);
+
+// Chain operations
+const result = validateUser(data)
+  .flatMap(createUser)
+  .flatMap(sendWelcomeEmail);
+```
+
+FUNCTIONAL MODELS
+-----------------
+
+Models are pure functions that encapsulate business logic. They validate,
+transform, and apply business rules using the Either monad.
+
+```javascript
+const { createModel, required, isEmail, minLength } = require('tenon');
+
+const UserModel = createModel({
+  validate: (data) => {
+    return required('email', 'Email required')(data)
+      .flatMap(isEmail('email', 'Valid email required'))
+      .flatMap(minLength('password', 8, 'Password too short'));
+  },
+  transforms: [
+    (data) => Either.Right({ 
+      ...data, 
+      email: data.email.toLowerCase().trim() 
+    })
+  ],
+  defaults: {
+    role: 'user',
+    created_at: () => new Date().toISOString()
+  }
+});
+
+// Use the model
+const result = UserModel.create(userData);
+result.fold(
+  error => handleError(error),
+  user => handleSuccess(user)
+);
+```
+
+UNIFIED SQLITE ADAPTER
+----------------------
+
+The SQLite adapter now provides both standard and functional interfaces in one
+unified implementation.
+
+```javascript
+const { createSQLiteAdapter } = require('./app/adapters/sqlite');
+
+// Create adapter with functional extensions
+const adapter = createSQLiteAdapter({
+  filename: './database.db',
+  tables: { ArticleTag: 'article_tags' },
+  functional: true  // Enable functional extensions
+});
+
+// Standard repository (backward compatible)
+const standardRepo = adapter.generateRepository(schema, entity);
+const user = await standardRepo.findById(1);
+
+// Functional repository (Either monad)
+const functionalRepo = adapter.generateFunctionalRepository(schema, entity);
+const result = await functionalRepo.findById(1);
+result.fold(
+  error => console.error(error),
+  user => console.log(user)
+);
+
+// Functional query builder
+const queryResult = await functionalRepo.query()
+  .where('role', 'admin')
+  .whereLike('name', 'john')
+  .orderBy('created_at', 'DESC')
+  .limit(10)
+  .execute();
+```
+
+FUNCTIONAL IN-MEMORY ADAPTER
+----------------------------
+
+For testing and development, a complete in-memory adapter with functional
+patterns is available.
+
+```javascript
+const { createInMemoryAdapter } = require('./app/adapters/inmemory');
+
+const adapter = createInMemoryAdapter({
+  initialData: {
+    User: [
+      { id: 1, name: 'Test User', email: 'test@example.com' }
+    ]
+  }
+});
+
+// All the same interfaces as SQLite adapter
+const repo = adapter.generateFunctionalRepository(schema, entity);
+```
+
+MIGRATION PATH
+--------------
+
+1. **Start with standard patterns**: Use existing Promise-based repositories
+2. **Add Either monad gradually**: Wrap specific operations with Either.fromPromise()
+3. **Create pure models**: Extract business logic into model functions
+4. **Use functional repositories**: Switch to functional interfaces where needed
+5. **Compose operations**: Chain model and repository operations with flatMap()
+
+EXAMPLE: COMPLETE FUNCTIONAL FLOW
+---------------------------------
+
+```javascript
+// 1. Define model
+const TodoModel = createModel({ /* validation, transforms */ });
+
+// 2. Get functional repository
+const todoRepo = adapter.generateFunctionalRepository(schema, 'Todo');
+
+// 3. Compose operations
+const createTodo = (data) => {
+  return TodoModel.create(data)
+    .flatMap(todoRepo.create)
+    .map(todo => ({ ...todo, url: `/todos/${todo.id}` }));
+};
+
+// 4. Handle result
+const result = await createTodo({ text: 'Learn FP' });
+result.fold(
+  error => ({ status: 422, body: { error } }),
+  todo => ({ status: 201, body: todo })
+);
+```
+
+BENEFITS
+--------
+
+1. **Explicit error handling**: Errors are values, not exceptions
+2. **Pure business logic**: Models are testable and reusable
+3. **Composability**: Operations chain naturally
+4. **Type safety**: Either monad enforces error handling
+5. **Backward compatibility**: Existing code continues to work
+6. **Explicit dependencies**: No DI containers or implicit environments
+
+COMPLETE EXAMPLE APPLICATION
+----------------------------
+
+See `functional_app.js` for a complete todo application using all functional
+patterns with a web UI and REST API.
+
+Run: `node functional_app.js`
+Visit: http://localhost:3000
