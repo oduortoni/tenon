@@ -23,7 +23,13 @@ const {
     Schema,
     Types,
     field,
-    entity
+    entity,
+    // Functional programming utilities
+    Either,
+    createModel,
+    required,
+    isEmail,
+    minLength
 } = require('tenon');   // in this repo: require('./lib')
 ```
 
